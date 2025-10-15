@@ -42,6 +42,7 @@ console.log(response.choices[0].message.content);
 - ✅ **TypeScript Native** - Full type safety and IntelliSense
 - ✅ **Error Handling** - Comprehensive error types
 - ✅ **Automatic Retries** - Built-in retry logic for failed requests
+- ✅ **Cloudflare Workers** - Optimized build for serverless environments
 
 ## Configuration
 
@@ -300,6 +301,55 @@ try {
 }
 ```
 
+## Cloudflare Workers Support
+
+The SDK is fully compatible with Cloudflare Workers! Use the Workers-optimized build:
+
+```typescript
+import { Ragwalla } from '@ragwalla/agents-sdk/workers';
+
+export default {
+  async fetch(request: Request, env: any): Promise<Response> {
+    const ragwalla = new Ragwalla({
+      apiKey: env.RAGWALLA_API_KEY, // Use environment bindings
+    });
+
+    const agent = await ragwalla.agents.create({
+      name: 'Worker Agent',
+      instructions: 'You are an AI assistant running in Cloudflare Workers.'
+    });
+
+    const response = await ragwalla.agents.createChatCompletion(agent.id, {
+      messages: [{ role: 'user', content: 'Hello from Workers!' }]
+    });
+
+    return new Response(JSON.stringify(response), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+};
+```
+
+### WebSocket in Workers
+
+```typescript
+import { RagwallaWebSocket } from '@ragwalla/agents-sdk/workers';
+
+// In your Workers WebSocket handler
+const ws = new RagwallaWebSocket({
+  baseURL: 'wss://api.ragwalla.com'
+});
+
+await ws.connect(agentId, 'main', token);
+```
+
+### Key Differences for Workers
+
+- Import from `@ragwalla/agents-sdk/workers` instead of the main package
+- Use `env` bindings for environment variables instead of `process.env`
+- WebSocket uses native Workers WebSocket API instead of the Node.js `ws` package
+- Optimized build excludes Node.js-specific dependencies
+
 ## Examples
 
 Check the `examples/` directory for complete usage examples:
@@ -308,6 +358,7 @@ Check the `examples/` directory for complete usage examples:
 - `streaming-chat.ts` - Streaming chat completions
 - `websocket-chat.ts` - Real-time WebSocket communication
 - `vector-search.ts` - Vector store search examples
+- `cloudflare-workers.ts` - Complete Cloudflare Workers implementation
 
 ## Environment Variables
 

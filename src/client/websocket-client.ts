@@ -1,5 +1,48 @@
-import WebSocket from 'ws';
 import { WebSocketMessage, ChatMessage } from '../types';
+
+// Universal WebSocket interface
+interface UniversalWebSocket {
+  send(data: string): void;
+  close(): void;
+  readyState: number;
+  addEventListener(type: string, listener: (event: any) => void): void;
+  removeEventListener(type: string, listener: (event: any) => void): void;
+}
+
+// WebSocket factory function that works in both Node.js and Workers
+function createWebSocket(url: string): UniversalWebSocket {
+  if (typeof WebSocket !== 'undefined') {
+    // Browser/Workers environment
+    return new WebSocket(url) as UniversalWebSocket;
+  } else {
+    // Node.js environment
+    try {
+      const WS = require('ws');
+      const ws = new WS(url);
+      
+      // Adapt Node.js WebSocket to match browser API
+      return {
+        send: (data: string) => ws.send(data),
+        close: () => ws.close(),
+        get readyState() { return ws.readyState; },
+        addEventListener: (type: string, listener: (event: any) => void) => {
+          if (type === 'open') ws.on('open', listener);
+          else if (type === 'message') ws.on('message', (data: any) => listener({ data }));
+          else if (type === 'close') ws.on('close', (code: number, reason: string) => listener({ code, reason }));
+          else if (type === 'error') ws.on('error', listener);
+        },
+        removeEventListener: (type: string, listener: (event: any) => void) => {
+          if (type === 'open') ws.off('open', listener);
+          else if (type === 'message') ws.off('message', listener);
+          else if (type === 'close') ws.off('close', listener);
+          else if (type === 'error') ws.off('error', listener);
+        }
+      };
+    } catch (error) {
+      throw new Error('WebSocket not available in this environment. In Node.js, please install the "ws" package.');
+    }
+  }
+}
 
 export interface WebSocketConfig {
   baseURL?: string;
@@ -8,13 +51,14 @@ export interface WebSocketConfig {
 }
 
 export class RagwallaWebSocket {
-  private ws: WebSocket | null = null;
+  private ws: UniversalWebSocket | null = null;
   private baseURL: string;
   private reconnectAttempts: number;
   private reconnectDelay: number;
   private currentAttempts = 0;
   private isManuallyDisconnected = false;
   private listeners: Map<string, Set<Function>> = new Map();
+  private eventHandlers: Map<string, (event: any) => void> = new Map();
 
   constructor(config: WebSocketConfig = {}) {
     this.baseURL = config.baseURL || 'wss://api.ragwalla.com';
@@ -29,25 +73,30 @@ export class RagwallaWebSocket {
     const url = `${this.baseURL}/v1/agents/${agentId}/${connectionId}?token=${token}`;
     
     return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(url);
+      this.ws = createWebSocket(url);
       
-      this.ws.on('open', () => {
+      // Create event handlers that we can later remove
+      const openHandler = () => {
         this.currentAttempts = 0;
         this.isManuallyDisconnected = false;
         this.emit('connected', {});
         resolve();
-      });
+      };
 
-      this.ws.on('message', (data: WebSocket.Data) => {
+      const messageHandler = (event: any) => {
         try {
-          const message: WebSocketMessage = JSON.parse(data.toString());
+          const data = event.data || event;
+          const messageText = typeof data === 'string' ? data : data.toString();
+          const message: WebSocketMessage = JSON.parse(messageText);
           this.handleMessage(message);
         } catch (error) {
-          this.emit('error', { error: 'Failed to parse message', data: data.toString() });
+          this.emit('error', { error: 'Failed to parse message', data: event.data });
         }
-      });
+      };
 
-      this.ws.on('close', (code: number, reason: string) => {
+      const closeHandler = (event: any) => {
+        const code = event.code || 1000;
+        const reason = event.reason || 'Connection closed';
         this.emit('disconnected', { code, reason });
         
         if (!this.isManuallyDisconnected && this.currentAttempts < this.reconnectAttempts) {
@@ -60,12 +109,25 @@ export class RagwallaWebSocket {
             });
           }, this.reconnectDelay * this.currentAttempts);
         }
-      });
+      };
 
-      this.ws.on('error', (error) => {
-        this.emit('error', { error: error.message });
-        reject(error);
-      });
+      const errorHandler = (error: any) => {
+        const errorMessage = error.message || error.toString() || 'WebSocket error';
+        this.emit('error', { error: errorMessage });
+        reject(new Error(errorMessage));
+      };
+
+      // Store handlers for cleanup
+      this.eventHandlers.set('open', openHandler);
+      this.eventHandlers.set('message', messageHandler);
+      this.eventHandlers.set('close', closeHandler);
+      this.eventHandlers.set('error', errorHandler);
+
+      // Add event listeners
+      this.ws.addEventListener('open', openHandler);
+      this.ws.addEventListener('message', messageHandler);
+      this.ws.addEventListener('close', closeHandler);
+      this.ws.addEventListener('error', errorHandler);
     });
   }
 
@@ -75,6 +137,12 @@ export class RagwallaWebSocket {
   disconnect(): void {
     this.isManuallyDisconnected = true;
     if (this.ws) {
+      // Remove event listeners
+      this.eventHandlers.forEach((handler, event) => {
+        this.ws!.removeEventListener(event, handler);
+      });
+      this.eventHandlers.clear();
+      
       this.ws.close();
       this.ws = null;
     }
@@ -84,7 +152,7 @@ export class RagwallaWebSocket {
    * Send a chat message to the agent
    */
   sendMessage(message: ChatMessage): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.ws || this.ws.readyState !== 1) { // 1 = OPEN
       throw new Error('WebSocket is not connected');
     }
 
@@ -101,7 +169,7 @@ export class RagwallaWebSocket {
    * Send raw data to the WebSocket
    */
   send(data: any): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.ws || this.ws.readyState !== 1) { // 1 = OPEN
       throw new Error('WebSocket is not connected');
     }
 
@@ -112,7 +180,7 @@ export class RagwallaWebSocket {
    * Check if WebSocket is connected
    */
   isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN;
+    return this.ws?.readyState === 1; // 1 = OPEN
   }
 
   /**

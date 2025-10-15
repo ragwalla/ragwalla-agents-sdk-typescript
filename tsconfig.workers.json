@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["ES2022", "WebWorker"],
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["src/workers.ts", "src/types/**/*", "src/resources/**/*", "src/client/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "examples/**/*"]
+}
