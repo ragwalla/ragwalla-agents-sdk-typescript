@@ -4,11 +4,26 @@ export class HTTPClient {
   private apiKey: string;
   private baseURL!: string; // Assigned in validateAndSetBaseURL
   private timeout: number;
+  private debug: boolean;
 
   constructor(config: RagwallaConfig) {
     this.apiKey = config.apiKey;
     this.validateAndSetBaseURL(config.baseURL);
     this.timeout = config.timeout || 30000;
+    this.debug = config.debug || false;
+  }
+
+  private log(level: 'info' | 'warn' | 'error', message: string, data?: any): void {
+    if (!this.debug) return;
+    
+    const timestamp = new Date().toISOString();
+    const prefix = `[Ragwalla HTTP ${timestamp}]`;
+    
+    if (data) {
+      console[level](`${prefix} ${message}`, data);
+    } else {
+      console[level](`${prefix} ${message}`);
+    }
   }
 
   private validateAndSetBaseURL(baseURL: string): void {
@@ -68,8 +83,13 @@ export class HTTPClient {
       });
     }
 
+    this.log('info', 'Making GET request', { url: url.toString(), params });
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const timeoutId = setTimeout(() => {
+      this.log('error', 'Request timeout reached', { url: url.toString(), timeout: this.timeout });
+      controller.abort();
+    }, this.timeout);
 
     try {
       const response = await fetch(url.toString(), {
@@ -78,7 +98,16 @@ export class HTTPClient {
         signal: controller.signal
       });
 
+      this.log('info', 'GET request completed', { 
+        url: url.toString(), 
+        status: response.status, 
+        statusText: response.statusText 
+      });
+
       return this.handleResponse<T>(response);
+    } catch (error) {
+      this.log('error', 'GET request failed', { url: url.toString(), error });
+      throw error;
     } finally {
       clearTimeout(timeoutId);
     }
@@ -86,8 +115,14 @@ export class HTTPClient {
 
   async post<T>(path: string, data?: any): Promise<T> {
     const url = new URL(path, this.baseURL);
+    
+    this.log('info', 'Making POST request', { url: url.toString(), hasData: !!data });
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const timeoutId = setTimeout(() => {
+      this.log('error', 'Request timeout reached', { url: url.toString(), timeout: this.timeout });
+      controller.abort();
+    }, this.timeout);
 
     try {
       const response = await fetch(url.toString(), {
@@ -97,7 +132,16 @@ export class HTTPClient {
         signal: controller.signal
       });
 
+      this.log('info', 'POST request completed', { 
+        url: url.toString(), 
+        status: response.status, 
+        statusText: response.statusText 
+      });
+
       return this.handleResponse<T>(response);
+    } catch (error) {
+      this.log('error', 'POST request failed', { url: url.toString(), error });
+      throw error;
     } finally {
       clearTimeout(timeoutId);
     }

@@ -53,6 +53,7 @@ export class Ragwalla {
   }) {
     return new RagwallaWebSocket({
       baseURL: this.config.baseURL,
+      debug: this.config.debug,
       ...config
     });
   }

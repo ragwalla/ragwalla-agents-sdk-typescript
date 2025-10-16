@@ -2,6 +2,7 @@ export interface RagwallaConfig {
   apiKey: string;
   baseURL: string; // Now mandatory - must follow pattern: https://example.ai.ragwalla.com/v1
   timeout?: number;
+  debug?: boolean; // Enable debug logging
 }
 
 export interface Agent {

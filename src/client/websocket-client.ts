@@ -48,6 +48,7 @@ export interface WebSocketConfig {
   baseURL: string; // Required - must follow pattern: wss://example.ai.ragwalla.com/v1
   reconnectAttempts?: number;
   reconnectDelay?: number;
+  debug?: boolean; // Enable debug logging
 }
 
 export class RagwallaWebSocket {
@@ -59,11 +60,26 @@ export class RagwallaWebSocket {
   private isManuallyDisconnected = false;
   private listeners: Map<string, Set<Function>> = new Map();
   private eventHandlers: Map<string, (event: any) => void> = new Map();
+  private debug: boolean;
 
   constructor(config: WebSocketConfig) {
     this.validateAndSetWebSocketURL(config.baseURL);
     this.reconnectAttempts = config.reconnectAttempts || 3;
     this.reconnectDelay = config.reconnectDelay || 1000;
+    this.debug = config.debug || false;
+  }
+
+  private log(level: 'info' | 'warn' | 'error', message: string, data?: any): void {
+    if (!this.debug) return;
+    
+    const timestamp = new Date().toISOString();
+    const prefix = `[Ragwalla WebSocket ${timestamp}]`;
+    
+    if (data) {
+      console[level](`${prefix} ${message}`, data);
+    } else {
+      console[level](`${prefix} ${message}`);
+    }
   }
 
   private validateAndSetWebSocketURL(baseURL: string): void {
@@ -97,11 +113,19 @@ export class RagwallaWebSocket {
   async connect(agentId: string, connectionId: string, token: string): Promise<void> {
     const url = `${this.baseURL}/agents/${agentId}/${connectionId}?token=${token}`;
     
+    this.log('info', 'Attempting to connect to WebSocket', { 
+      url, 
+      agentId, 
+      connectionId,
+      tokenLength: token.length 
+    });
+    
     return new Promise((resolve, reject) => {
       this.ws = createWebSocket(url);
       
       // Create event handlers that we can later remove
       const openHandler = () => {
+        this.log('info', 'WebSocket connection opened successfully');
         this.currentAttempts = 0;
         this.isManuallyDisconnected = false;
         this.emit('connected', {});
@@ -112,9 +136,13 @@ export class RagwallaWebSocket {
         try {
           const data = event.data || event;
           const messageText = typeof data === 'string' ? data : data.toString();
+          this.log('info', 'Received WebSocket message', { messageText });
+          
           const message: WebSocketMessage = JSON.parse(messageText);
+          this.log('info', 'Parsed WebSocket message', { type: message.type, dataKeys: Object.keys(message.data || {}) });
           this.handleMessage(message);
         } catch (error) {
+          this.log('error', 'Failed to parse WebSocket message', { error, rawData: event.data });
           this.emit('error', { error: 'Failed to parse message', data: event.data });
         }
       };
@@ -122,22 +150,28 @@ export class RagwallaWebSocket {
       const closeHandler = (event: any) => {
         const code = event.code || 1000;
         const reason = event.reason || 'Connection closed';
+        this.log('warn', 'WebSocket connection closed', { code, reason });
         this.emit('disconnected', { code, reason });
         
         if (!this.isManuallyDisconnected && this.currentAttempts < this.reconnectAttempts) {
+          const delay = this.reconnectDelay * this.currentAttempts;
+          this.log('info', `Attempting reconnection ${this.currentAttempts + 1}/${this.reconnectAttempts} in ${delay}ms`);
+          
           setTimeout(() => {
             this.currentAttempts++;
             this.connect(agentId, connectionId, token).catch(() => {
               if (this.currentAttempts >= this.reconnectAttempts) {
+                this.log('error', 'All reconnection attempts failed', { attempts: this.currentAttempts });
                 this.emit('reconnectFailed', { attempts: this.currentAttempts });
               }
             });
-          }, this.reconnectDelay * this.currentAttempts);
+          }, delay);
         }
       };
 
       const errorHandler = (error: any) => {
         const errorMessage = error.message || error.toString() || 'WebSocket error';
+        this.log('error', 'WebSocket error occurred', { error: errorMessage, fullError: error });
         this.emit('error', { error: errorMessage });
         reject(new Error(errorMessage));
       };
@@ -178,6 +212,10 @@ export class RagwallaWebSocket {
    */
   sendMessage(message: ChatMessage): void {
     if (!this.ws || this.ws.readyState !== 1) { // 1 = OPEN
+      this.log('error', 'Cannot send message - WebSocket not connected', { 
+        readyState: this.ws?.readyState, 
+        message 
+      });
       throw new Error('WebSocket is not connected');
     }
 
@@ -187,6 +225,7 @@ export class RagwallaWebSocket {
       timestamp: new Date().toISOString()
     };
 
+    this.log('info', 'Sending WebSocket message', { payload });
     this.ws.send(JSON.stringify(payload));
   }
 
@@ -195,9 +234,14 @@ export class RagwallaWebSocket {
    */
   send(data: any): void {
     if (!this.ws || this.ws.readyState !== 1) { // 1 = OPEN
+      this.log('error', 'Cannot send data - WebSocket not connected', { 
+        readyState: this.ws?.readyState, 
+        data 
+      });
       throw new Error('WebSocket is not connected');
     }
 
+    this.log('info', 'Sending raw WebSocket data', { data });
     this.ws.send(JSON.stringify(data));
   }
 

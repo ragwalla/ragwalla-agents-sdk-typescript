@@ -63,11 +63,31 @@ await ws.connect(agent.id, 'main', tokenResponse.token);
 const ragwalla = new Ragwalla({
   apiKey: 'your-api-key',                        // Required
   baseURL: 'https://example.ai.ragwalla.com/v1', // Required - your custom domain
-  timeout: 30000                                 // Optional, request timeout in ms
+  timeout: 30000,                                // Optional, request timeout in ms
+  debug: false                                   // Optional, enable debug logging
 });
 ```
 
 **Important:** The `baseURL` must follow the pattern `https://[subdomain].ai.ragwalla.com/v1` where `[subdomain]` is your organization's unique identifier.
+
+### Debug Logging
+
+Enable debug logging to troubleshoot connection issues and monitor SDK behavior:
+
+```typescript
+const ragwalla = new Ragwalla({
+  apiKey: process.env.RAGWALLA_API_KEY!,
+  baseURL: 'https://example.ai.ragwalla.com/v1',
+  debug: true // Enables detailed logging for HTTP and WebSocket
+});
+
+// Debug logs will show:
+// - HTTP request/response details
+// - WebSocket connection events
+// - Message sending/receiving
+// - Error details and stack traces
+// - Timeout and retry information
+```
 
 ## Agent Management
 
@@ -378,6 +398,7 @@ Check the `examples/` directory for complete usage examples:
 - `websocket-chat.ts` - Real-time WebSocket communication
 - `vector-search.ts` - Vector store search examples
 - `cloudflare-workers.ts` - Complete Cloudflare Workers implementation
+- `debug-websocket.ts` - WebSocket debugging with detailed logging
 
 ## Environment Variables
 
