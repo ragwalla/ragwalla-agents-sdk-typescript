@@ -209,6 +209,9 @@ export class RagwallaWebSocket {
 
   /**
    * Send a chat message to the agent
+   * 
+   * Note: The server expects content at the top level, not nested in a data object.
+   * Format: { type: 'message', content: '...', role: '...', timestamp: '...' }
    */
   sendMessage(message: ChatMessage): void {
     if (!this.ws || this.ws.readyState !== 1) { // 1 = OPEN
@@ -219,10 +222,14 @@ export class RagwallaWebSocket {
       throw new Error('WebSocket is not connected');
     }
 
-    const payload: WebSocketMessage = {
+    // Server expects content at top level, not nested in data object
+    const payload = {
       type: 'message',
-      data: message,
-      timestamp: new Date().toISOString()
+      content: message.content,
+      role: message.role,
+      timestamp: new Date().toISOString(),
+      // Include optional fields if provided
+      ...(message.metadata && { metadata: message.metadata })
     };
 
     this.log('info', 'Sending WebSocket message', { payload });
@@ -299,16 +306,71 @@ export class RagwallaWebSocket {
   private handleMessage(message: WebSocketMessage): void {
     switch (message.type) {
       case 'message':
-        this.emit('message', message.data);
+      case 'chat_message':
+        // Server sends content at top level, not in data wrapper
+        const messageData = message.data || {
+          content: message.content,
+          role: message.role,
+          threadId: message.threadId,
+          messageId: message.messageId
+        };
+        this.emit('message', messageData);
+        break;
+      case 'chunk':
+        // Streaming message chunk from server
+        this.emit('chunk', {
+          content: (message as any).content,
+          messageId: (message as any).messageId
+        });
+        // Also emit as message for compatibility
+        this.emit('message', {
+          content: (message as any).content,
+          role: 'assistant',
+          messageId: (message as any).messageId
+        });
+        break;
+      case 'complete':
+        // Message completion event
+        this.emit('complete', {
+          messageId: (message as any).messageId
+        });
+        break;
+      case 'message_created':
+        // New message created event
+        this.emit('messageCreated', {
+          messageId: (message as any).messageId,
+          role: (message as any).role
+        });
+        break;
+      case 'thread_info':
+        // Thread information
+        this.emit('threadInfo', message.data || message);
+        break;
+      case 'typing':
+        // Typing indicator
+        this.emit('typing', {
+          isTyping: (message as any).isTyping
+        });
+        break;
+      case 'tool_use':
+        // Tool usage information
+        this.emit('toolUse', {
+          tools: (message as any).tools
+        });
         break;
       case 'token_usage':
         this.emit('tokenUsage', message.data);
         break;
       case 'error':
-        this.emit('error', message.data);
+        this.emit('error', message.data || { error: message.content });
         break;
       case 'connection_status':
-        this.emit('connectionStatus', message.data);
+      case 'connected':
+        this.emit('connectionStatus', message.data || message);
+        break;
+      case 'cf_agent_state':
+        // Cloudflare agent state updates - emit as raw message
+        this.emit('agentState', message.data || message);
         break;
       default:
         this.emit('rawMessage', message);

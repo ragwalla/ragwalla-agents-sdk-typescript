@@ -32,7 +32,7 @@ async function streamingExample() {
     });
 
     let fullResponse = '';
-    let isComplete = false;
+    let currentMessageId = '';
 
     // Set up event listeners
     ws.on('connected', () => {
@@ -47,22 +47,28 @@ async function streamingExample() {
       });
     });
 
+    // Listen for streaming chunks (recommended for streaming)
+    ws.on('chunk', (chunk) => {
+      if (chunk.content) {
+        process.stdout.write(chunk.content);
+        fullResponse += chunk.content;
+        currentMessageId = chunk.messageId;
+      }
+    });
+
+    // Listen for message completion
+    ws.on('complete', (info) => {
+      console.log('\n---');
+      console.log(`Message ${info.messageId} completed`);
+      console.log('Full response:', fullResponse);
+      ws.disconnect();
+      process.exit(0);
+    });
+
+    // Also listen to 'message' events (for compatibility)
     ws.on('message', (message) => {
-      if (message.content) {
-        process.stdout.write(message.content);
-        fullResponse += message.content;
-      }
-      
-      // Disconnect after receiving response
-      if (message.role === 'assistant') {
-        isComplete = true;
-        setTimeout(() => {
-          console.log('\n---');
-          console.log('Full response:', fullResponse);
-          ws.disconnect();
-          process.exit(0);
-        }, 1000);
-      }
+      // This will also receive chunks, but 'chunk' event is more specific
+      // You can use either 'chunk' or 'message' events
     });
 
     ws.on('error', (error) => {
@@ -71,23 +77,14 @@ async function streamingExample() {
     });
 
     ws.on('disconnected', ({ code, reason }) => {
-      if (!isComplete) {
-        console.log(`\nDisconnected: ${code} - ${reason}`);
-      }
+      console.log(`\nDisconnected: ${code} - ${reason}`);
     });
 
     // Connect to the agent
     await ws.connect(agent.id, 'streaming-session', tokenResponse.token);
 
-    // Keep the process running until complete
-    await new Promise((resolve) => {
-      const checkInterval = setInterval(() => {
-        if (isComplete) {
-          clearInterval(checkInterval);
-          resolve(undefined);
-        }
-      }, 100);
-    });
+    // Keep the process running (will exit when complete event fires)
+    await new Promise(() => {}); // Never resolves - process.exit() called in complete handler
 
   } catch (error) {
     console.error('Error:', error);

@@ -206,12 +206,56 @@ ws.sendMessage({
 
 The WebSocket client emits the following events:
 
+#### Connection Events
 - `connected` - Successfully connected to agent
-- `message` - New message from agent
-- `tokenUsage` - Token usage information
+- `disconnected` - Connection closed (`{ code, reason }`)
+- `reconnectFailed` - Reconnection attempts failed (`{ attempts }`)
+- `connectionStatus` - Connection status updates
+
+#### Message Events
+- `message` - Generic message event (receives all message types)
+- `chunk` - Streaming content chunk (`{ content, messageId }`)
+- `complete` - Message completion (`{ messageId }`)
+- `messageCreated` - New message started (`{ messageId, role }`)
+
+#### Agent Events
+- `agentState` - Agent state updates (Cloudflare-specific)
+- `threadInfo` - Thread information (`{ threadId, assistantId, isNewThread }`)
+- `typing` - Typing indicator (`{ isTyping }`)
+- `toolUse` - Tool usage information (`{ tools }`)
+
+#### Other Events
+- `tokenUsage` - Token usage statistics
 - `error` - Error occurred
-- `disconnected` - Connection closed
-- `reconnectFailed` - Reconnection attempts failed
+- `rawMessage` - Unhandled message types (for debugging)
+
+### Streaming Response Example
+
+```typescript
+const ws = ragwalla.createWebSocket();
+
+let fullResponse = '';
+
+// Listen for streaming chunks (recommended)
+ws.on('chunk', (chunk) => {
+  process.stdout.write(chunk.content);
+  fullResponse += chunk.content;
+});
+
+// Listen for completion
+ws.on('complete', (info) => {
+  console.log('\nMessage completed:', info.messageId);
+  console.log('Full response:', fullResponse);
+});
+
+// Or use generic 'message' event (also receives chunks)
+ws.on('message', (message) => {
+  console.log('Received:', message.content);
+});
+
+await ws.connect(agent.id, 'session-id', token);
+ws.sendMessage({ role: 'user', content: 'Hello!' });
+```
 
 ## Vector Search
 

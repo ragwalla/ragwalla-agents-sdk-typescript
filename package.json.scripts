@@ -1,0 +1,7 @@
+{
+  "test-client": "ts-node test-client.ts",
+  "test-client:debug": "DEBUG=true ts-node test-client.ts --debug",
+  "test-client:basic": "SCENARIOS=agent-management,token-generation,basic-chat ts-node test-client.ts",
+  "test-client:advanced": "SCENARIOS=long-response,multi-message,connection-recovery,timeout-handling ts-node test-client.ts",
+  "test-client:quick": "SCENARIOS=basic-chat TIMEOUT=10000 ts-node test-client.ts"
+}

@@ -115,9 +115,25 @@ export interface QuotaStatus {
 }
 
 export interface WebSocketMessage {
-  type: 'message' | 'token_usage' | 'error' | 'connection_status';
-  data: any;
+  type: 'message' | 'chat_message' | 'chunk' | 'complete' | 'message_created' | 
+        'thread_info' | 'typing' | 'tool_use' | 'token_usage' | 'error' | 
+        'connection_status' | 'connected' | 'cf_agent_state';
+  data?: any; // Optional - some message types don't use data wrapper
+  content?: string; // For message types - content at top level
+  role?: string; // For message types
   timestamp?: string;
+  // Additional fields the server may include
+  threadId?: string;
+  assistantId?: string;
+  agentId?: string;
+  projectId?: string;
+  userId?: string;
+  createNewThread?: boolean;
+  messageId?: string;
+  isTyping?: boolean; // For typing messages
+  tools?: string[]; // For tool_use messages
+  isNewThread?: boolean; // For thread_info messages
+  assistantName?: string; // For thread_info messages
 }
 
 export interface RagwallaError {

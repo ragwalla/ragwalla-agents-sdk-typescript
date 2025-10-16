@@ -1,6 +1,70 @@
 # Changelog
 
-## [Unreleased] - 2025-01-16
+## [1.0.6] - 2025-10-16
+
+### Fixed
+
+#### WebSocket Message Format
+
+**Fixed:** WebSocket messages now use the correct flat structure expected by the server.
+
+**Before (Broken):**
+```typescript
+{
+  type: 'message',
+  data: {              // ❌ Extra nesting
+    role: 'user',
+    content: 'Hello'
+  }
+}
+```
+
+**After (Fixed):**
+```typescript
+{
+  type: 'message',
+  content: 'Hello',    // ✅ Flat structure
+  role: 'user'
+}
+```
+
+#### Streaming Response Support
+
+**Added:** Full support for server's streaming message protocol.
+
+**New event types:**
+- `chunk` - Streaming content chunks
+- `complete` - Message completion
+- `messageCreated` - New message started
+- `threadInfo` - Thread information
+- `typing` - Typing indicators
+- `toolUse` - Tool usage information
+- `agentState` - Agent state updates (Cloudflare-specific)
+
+**Example:**
+```typescript
+ws.on('chunk', (chunk) => {
+  console.log(chunk.content); // Real-time streaming
+});
+
+ws.on('complete', (info) => {
+  console.log('Message completed:', info.messageId);
+});
+```
+
+### Added
+
+- New example: `examples/advanced-websocket.ts` - Shows all WebSocket event types
+- Comprehensive event documentation in README
+- Debug logging support for troubleshooting
+
+### Changed
+
+- Updated `examples/streaming-chat.ts` to use `chunk` and `complete` events
+- Enhanced `WebSocketMessage` interface with all server message types
+- Improved message handler to support both flat and nested formats
+
+## [1.0.5] - 2025-01-16
 
 ### Breaking Changes
 
@@ -24,7 +88,7 @@ The ragwalla-hono-worker server does NOT support HTTP-based chat completion endp
 - Token endpoint from `/v1/agents/token` to `/v1/agents/auth/websocket`
 
 **Reason:**
-The correct endpoint in ragwalla-hono-worker is `/v1/agents/auth/websocket` (line 308 in register-routes.ts)
+The correct endpoint in ragwalla-hono-worker is `/v1/agents/auth/websocket`
 
 ### Migration Guide
 
