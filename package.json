@@ -1,6 +1,6 @@
 {
   "name": "@ragwalla/agents-sdk",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "TypeScript SDK for Ragwalla Agents API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
