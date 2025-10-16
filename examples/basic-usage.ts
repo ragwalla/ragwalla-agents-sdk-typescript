@@ -27,19 +27,14 @@ async function basicExample() {
     const agentsList = await ragwalla.agents.list();
     console.log('All agents:', agentsList.data);
 
-    // Send a message to the agent (non-streaming)
-    const response = await ragwalla.agents.createChatCompletion(agent.id, {
-      messages: [
-        {
-          role: 'user',
-          content: 'Hello, I need help with my order.'
-        }
-      ],
-      max_tokens: 150,
-      temperature: 0.7
+    // Get a WebSocket token for real-time communication
+    const tokenResponse = await ragwalla.agents.getToken({
+      agent_id: agent.id,
+      expires_in: 3600 // 1 hour
     });
 
-    console.log('Agent response:', response.choices[0].message.content);
+    console.log('WebSocket token obtained. Use websocket-chat.ts example for real-time chat.');
+    console.log('Note: Chat with agents requires WebSocket connection, not HTTP requests.');
 
     // Clean up - delete the agent
     await ragwalla.agents.delete(agent.id);

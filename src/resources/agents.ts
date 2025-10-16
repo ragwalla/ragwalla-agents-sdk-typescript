@@ -2,8 +2,6 @@ import { HTTPClient } from '../client/http-client';
 import { 
   Agent, 
   CreateAgentRequest, 
-  ChatCompletionRequest, 
-  ChatCompletionResponse,
   ConnectionToken,
   Tool
 } from '../types';
@@ -53,36 +51,14 @@ export class AgentsResource {
 
   /**
    * Get connection token for WebSocket access
+   * Note: This endpoint generates a token for WebSocket authentication.
+   * Use the token with RagwallaWebSocket.connect() to establish a real-time connection.
    */
   async getToken(params?: {
     agent_id?: string;
     expires_in?: number;
   }): Promise<ConnectionToken> {
-    return this.client.post<ConnectionToken>('/v1/agents/token', params);
-  }
-
-  /**
-   * Send a message to an agent (non-streaming)
-   */
-  async createChatCompletion(
-    agentId: string, 
-    request: ChatCompletionRequest
-  ): Promise<ChatCompletionResponse> {
-    if (request.stream) {
-      throw new Error('Use createChatCompletionStream for streaming requests');
-    }
-    return this.client.post<ChatCompletionResponse>(`/v1/agents/${agentId}/chat/completions`, request);
-  }
-
-  /**
-   * Send a message to an agent (streaming)
-   */
-  async createChatCompletionStream(
-    agentId: string, 
-    request: ChatCompletionRequest
-  ): Promise<ReadableStream<ChatCompletionResponse>> {
-    const streamRequest = { ...request, stream: true };
-    return this.client.postEventStream<ChatCompletionResponse>(`/v1/agents/${agentId}/chat/completions`, streamRequest);
+    return this.client.post<ConnectionToken>('/v1/agents/auth/websocket', params);
   }
 
   /**

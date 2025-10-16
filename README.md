@@ -24,19 +24,31 @@ const agent = await ragwalla.agents.create({
   instructions: 'You are a helpful AI assistant.'
 });
 
-// Chat with the agent
-const response = await ragwalla.agents.createChatCompletion(agent.id, {
-  messages: [{ role: 'user', content: 'Hello!' }]
+// Get WebSocket token for real-time chat
+const tokenResponse = await ragwalla.agents.getToken({
+  agent_id: agent.id,
+  expires_in: 3600
 });
 
-console.log(response.choices[0].message.content);
+// Create WebSocket connection
+const ws = ragwalla.createWebSocket();
+
+ws.on('connected', () => {
+  ws.sendMessage({ role: 'user', content: 'Hello!' });
+});
+
+ws.on('message', (message) => {
+  console.log('Agent:', message.content);
+});
+
+await ws.connect(agent.id, 'main', tokenResponse.token);
 ```
 
 ## Features
 
 - ✅ **Agent Management** - Create, update, and manage AI agents
-- ✅ **Chat Completions** - Both streaming and non-streaming
-- ✅ **Real-time WebSocket** - Live chat with automatic reconnection
+- ✅ **Real-time WebSocket Chat** - Live streaming chat with automatic reconnection
+- ✅ **WebSocket-Only Communication** - All agent chat happens via WebSocket (no HTTP chat endpoints)
 - ✅ **Vector Search** - Semantic search across knowledge bases
 - ✅ **Tool Management** - Attach functions and assistants to agents
 - ✅ **Quota Management** - Track usage and limits
@@ -100,42 +112,39 @@ const updatedAgent = await ragwalla.agents.update(agent.id, {
 await ragwalla.agents.delete(agent.id);
 ```
 
-## Chat Completions
+## Important: WebSocket-Only Chat
 
-### Non-streaming Chat
+**All agent chat communication happens via WebSocket, not HTTP.** The ragwalla-hono-worker server does not support HTTP chat completion endpoints. You must use WebSocket connections for real-time agent communication.
 
-```typescript
-const response = await ragwalla.agents.createChatCompletion(agent.id, {
-  messages: [
-    { role: 'user', content: 'What is the weather like?' }
-  ],
-  max_tokens: 150,
-  temperature: 0.7
-});
+### Why WebSocket?
 
-console.log(response.choices[0].message.content);
-```
+- ✅ Real-time streaming responses
+- ✅ Bidirectional communication
+- ✅ Lower latency
+- ✅ Automatic reconnection
+- ✅ Connection state management
 
-### Streaming Chat
+### Available HTTP Endpoints (CRUD Only)
+
+HTTP endpoints are only for managing agents, not chatting:
 
 ```typescript
-const stream = await ragwalla.agents.createChatCompletionStream(agent.id, {
-  messages: [
-    { role: 'user', content: 'Write a story about AI' }
-  ],
-  stream: true,
-  max_tokens: 500
-});
+// ✅ Create agent (HTTP)
+await ragwalla.agents.create({ name: 'Agent' });
 
-const reader = stream.getReader();
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  
-  if (value.choices?.[0]?.message?.content) {
-    process.stdout.write(value.choices[0].message.content);
-  }
-}
+// ✅ List agents (HTTP)
+await ragwalla.agents.list();
+
+// ✅ Update agent (HTTP)
+await ragwalla.agents.update(agentId, { instructions: '...' });
+
+// ✅ Delete agent (HTTP)
+await ragwalla.agents.delete(agentId);
+
+// ✅ Get WebSocket token (HTTP)
+await ragwalla.agents.getToken({ agent_id: agentId });
+
+// ❌ NO HTTP chat endpoints - use WebSocket instead!
 ```
 
 ## Real-time WebSocket Chat
@@ -323,11 +332,17 @@ export default {
       instructions: 'You are an AI assistant running in Cloudflare Workers.'
     });
 
-    const response = await ragwalla.agents.createChatCompletion(agent.id, {
-      messages: [{ role: 'user', content: 'Hello from Workers!' }]
+    // Get WebSocket token for chat
+    const tokenResponse = await ragwalla.agents.getToken({
+      agent_id: agent.id,
+      expires_in: 3600
     });
 
-    return new Response(JSON.stringify(response), {
+    return new Response(JSON.stringify({ 
+      agent,
+      token: tokenResponse.token,
+      message: 'Use WebSocket to chat with this agent'
+    }), {
       headers: { 'Content-Type': 'application/json' }
     });
   }
@@ -358,8 +373,8 @@ await ws.connect(agentId, 'main', token);
 
 Check the `examples/` directory for complete usage examples:
 
-- `basic-usage.ts` - Basic agent operations
-- `streaming-chat.ts` - Streaming chat completions
+- `basic-usage.ts` - Agent CRUD operations and token generation
+- `streaming-chat.ts` - Streaming responses via WebSocket
 - `websocket-chat.ts` - Real-time WebSocket communication
 - `vector-search.ts` - Vector store search examples
 - `cloudflare-workers.ts` - Complete Cloudflare Workers implementation
