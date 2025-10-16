@@ -5,7 +5,7 @@ async function basicExample() {
   // Initialize the client
   const ragwalla = new Ragwalla({
     apiKey: process.env.RAGWALLA_API_KEY!,
-    baseURL: 'https://api.ragwalla.com' // Optional, defaults to this
+    baseURL: 'https://example.ai.ragwalla.com/v1' // Replace with your organization's URL
   });
 
   try {

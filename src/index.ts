@@ -11,12 +11,14 @@ export class Ragwalla {
   public readonly quota: QuotaResource;
   
   private httpClient: HTTPClient;
+  private config: RagwallaConfig;
 
   constructor(config: RagwallaConfig) {
     if (!config.apiKey) {
       throw new Error('Ragwalla API key is required');
     }
 
+    this.config = config;
     this.httpClient = new HTTPClient(config);
     this.agents = new AgentsResource(this.httpClient);
     this.vectorStores = new VectorStoresResource(this.httpClient);
@@ -27,11 +29,13 @@ export class Ragwalla {
    * Create a WebSocket connection for real-time communication
    */
   createWebSocket(config?: {
-    baseURL?: string;
     reconnectAttempts?: number;
     reconnectDelay?: number;
   }): RagwallaWebSocket {
-    return new RagwallaWebSocket(config);
+    return new RagwallaWebSocket({
+      baseURL: this.config.baseURL,
+      ...config
+    });
   }
 
   /**

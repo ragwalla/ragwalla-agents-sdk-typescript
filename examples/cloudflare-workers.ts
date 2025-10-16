@@ -6,6 +6,7 @@ export default {
     // Initialize the Ragwalla client with environment variables
     const ragwalla = new Ragwalla({
       apiKey: env.RAGWALLA_API_KEY, // Set this in your Worker environment
+      baseURL: env.RAGWALLA_BASE_URL // e.g., 'https://myorg.ai.ragwalla.com/v1'
     });
 
     try {
@@ -72,6 +73,7 @@ export default {
     // Initialize Ragwalla WebSocket client
     const ragwalla = new Ragwalla({
       apiKey: env.RAGWALLA_API_KEY,
+      baseURL: env.RAGWALLA_BASE_URL
     });
 
     // Get connection token
@@ -81,7 +83,7 @@ export default {
 
     // Connect to Ragwalla WebSocket
     const ws = new RagwallaWebSocket({
-      baseURL: 'wss://api.ragwalla.com'
+      baseURL: env.RAGWALLA_BASE_URL // Will auto-convert https:// to wss://
     });
 
     // Set up event handlers

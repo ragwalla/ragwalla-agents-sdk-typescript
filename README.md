@@ -14,7 +14,8 @@ npm install @ragwalla/agents-sdk
 import { Ragwalla } from '@ragwalla/agents-sdk';
 
 const ragwalla = new Ragwalla({
-  apiKey: process.env.RAGWALLA_API_KEY!
+  apiKey: process.env.RAGWALLA_API_KEY!,
+  baseURL: 'https://example.ai.ragwalla.com/v1' // Required
 });
 
 // Create an agent
@@ -48,11 +49,13 @@ console.log(response.choices[0].message.content);
 
 ```typescript
 const ragwalla = new Ragwalla({
-  apiKey: 'your-api-key',           // Required
-  baseURL: 'https://api.ragwalla.com', // Optional, defaults to this
-  timeout: 30000                    // Optional, request timeout in ms
+  apiKey: 'your-api-key',                        // Required
+  baseURL: 'https://example.ai.ragwalla.com/v1', // Required - your custom domain
+  timeout: 30000                                 // Optional, request timeout in ms
 });
 ```
+
+**Important:** The `baseURL` must follow the pattern `https://[subdomain].ai.ragwalla.com/v1` where `[subdomain]` is your organization's unique identifier.
 
 ## Agent Management
 
@@ -311,7 +314,8 @@ import { Ragwalla } from '@ragwalla/agents-sdk/workers';
 export default {
   async fetch(request: Request, env: any): Promise<Response> {
     const ragwalla = new Ragwalla({
-      apiKey: env.RAGWALLA_API_KEY, // Use environment bindings
+      apiKey: env.RAGWALLA_API_KEY,
+      baseURL: env.RAGWALLA_BASE_URL // e.g., 'https://myorg.ai.ragwalla.com/v1'
     });
 
     const agent = await ragwalla.agents.create({
@@ -337,7 +341,7 @@ import { RagwallaWebSocket } from '@ragwalla/agents-sdk/workers';
 
 // In your Workers WebSocket handler
 const ws = new RagwallaWebSocket({
-  baseURL: 'wss://api.ragwalla.com'
+  baseURL: 'wss://myorg.ai.ragwalla.com/v1'
 });
 
 await ws.connect(agentId, 'main', token);

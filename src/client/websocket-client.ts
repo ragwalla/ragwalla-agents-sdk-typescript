@@ -45,14 +45,14 @@ function createWebSocket(url: string): UniversalWebSocket {
 }
 
 export interface WebSocketConfig {
-  baseURL?: string;
+  baseURL: string; // Required - must follow pattern: wss://example.ai.ragwalla.com/v1
   reconnectAttempts?: number;
   reconnectDelay?: number;
 }
 
 export class RagwallaWebSocket {
   private ws: UniversalWebSocket | null = null;
-  private baseURL: string;
+  private baseURL!: string; // Assigned in validateAndSetWebSocketURL
   private reconnectAttempts: number;
   private reconnectDelay: number;
   private currentAttempts = 0;
@@ -60,17 +60,42 @@ export class RagwallaWebSocket {
   private listeners: Map<string, Set<Function>> = new Map();
   private eventHandlers: Map<string, (event: any) => void> = new Map();
 
-  constructor(config: WebSocketConfig = {}) {
-    this.baseURL = config.baseURL || 'wss://api.ragwalla.com';
+  constructor(config: WebSocketConfig) {
+    this.validateAndSetWebSocketURL(config.baseURL);
     this.reconnectAttempts = config.reconnectAttempts || 3;
     this.reconnectDelay = config.reconnectDelay || 1000;
+  }
+
+  private validateAndSetWebSocketURL(baseURL: string): void {
+    if (!baseURL) {
+      throw new Error('WebSocket baseURL is required');
+    }
+
+    // Convert https:// to wss:// if needed and validate pattern
+    let wsURL = baseURL;
+    if (baseURL.startsWith('https://')) {
+      wsURL = baseURL.replace('https://', 'wss://');
+    }
+
+    // Validate URL pattern: wss://*.ai.ragwalla.com/v1
+    const urlPattern = /^wss:\/\/[a-zA-Z0-9-]+\.ai\.ragwalla\.com\/v1\/?$/;
+    
+    if (!urlPattern.test(wsURL)) {
+      throw new Error(
+        'WebSocket baseURL must follow the pattern: wss://example.ai.ragwalla.com/v1\n' +
+        `Received: ${wsURL}`
+      );
+    }
+
+    // Remove trailing slash if present
+    this.baseURL = wsURL.replace(/\/$/, '');
   }
 
   /**
    * Connect to an agent's WebSocket endpoint
    */
   async connect(agentId: string, connectionId: string, token: string): Promise<void> {
-    const url = `${this.baseURL}/v1/agents/${agentId}/${connectionId}?token=${token}`;
+    const url = `${this.baseURL}/agents/${agentId}/${connectionId}?token=${token}`;
     
     return new Promise((resolve, reject) => {
       this.ws = createWebSocket(url);

@@ -1,6 +1,6 @@
 export interface RagwallaConfig {
   apiKey: string;
-  baseURL?: string;
+  baseURL: string; // Now mandatory - must follow pattern: https://example.ai.ragwalla.com/v1
   timeout?: number;
 }
 

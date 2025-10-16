@@ -8,6 +8,7 @@ export { RagwallaWebSocket } from './client/websocket-client';
 
 import { RagwallaConfig } from './types';
 import { HTTPClient } from './client/http-client';
+import { RagwallaWebSocket } from './client/websocket-client';
 import { AgentsResource } from './resources/agents';
 import { VectorStoresResource } from './resources/vector-stores';
 import { QuotaResource } from './resources/quota';
@@ -28,16 +29,32 @@ export class Ragwalla {
   public readonly agents: AgentsResource;
   public readonly vectorStores: VectorStoresResource;
   public readonly quota: QuotaResource;
+  
+  private config: RagwallaConfig;
 
   constructor(config: RagwallaConfig) {
     if (!config.apiKey) {
       throw new Error('Ragwalla API key is required');
     }
 
+    this.config = config;
     const client = new HTTPClient(config);
     this.agents = new AgentsResource(client);
     this.vectorStores = new VectorStoresResource(client);
     this.quota = new QuotaResource(client);
+  }
+
+  /**
+   * Create a WebSocket connection for real-time communication
+   */
+  createWebSocket(config?: {
+    reconnectAttempts?: number;
+    reconnectDelay?: number;
+  }) {
+    return new RagwallaWebSocket({
+      baseURL: this.config.baseURL,
+      ...config
+    });
   }
 }
 

@@ -2,13 +2,32 @@ import { RagwallaConfig, RagwallaError } from '../types';
 
 export class HTTPClient {
   private apiKey: string;
-  private baseURL: string;
+  private baseURL!: string; // Assigned in validateAndSetBaseURL
   private timeout: number;
 
   constructor(config: RagwallaConfig) {
     this.apiKey = config.apiKey;
-    this.baseURL = config.baseURL || 'https://api.ragwalla.com';
+    this.validateAndSetBaseURL(config.baseURL);
     this.timeout = config.timeout || 30000;
+  }
+
+  private validateAndSetBaseURL(baseURL: string): void {
+    if (!baseURL) {
+      throw new Error('baseURL is required');
+    }
+
+    // Validate URL pattern: https://*.ai.ragwalla.com/v1
+    const urlPattern = /^https:\/\/[a-zA-Z0-9-]+\.ai\.ragwalla\.com\/v1\/?$/;
+    
+    if (!urlPattern.test(baseURL)) {
+      throw new Error(
+        'baseURL must follow the pattern: https://example.ai.ragwalla.com/v1\n' +
+        `Received: ${baseURL}`
+      );
+    }
+
+    // Remove trailing slash if present
+    this.baseURL = baseURL.replace(/\/$/, '');
   }
 
   private getHeaders(): Record<string, string> {
