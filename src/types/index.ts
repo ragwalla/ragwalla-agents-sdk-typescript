@@ -117,13 +117,15 @@ export interface QuotaStatus {
 export interface WebSocketMessage {
   type: 'message' | 'chat_message' | 'chunk' | 'complete' | 'message_created' | 
         'thread_info' | 'typing' | 'tool_use' | 'token_usage' | 'error' | 
-        'connection_status' | 'connected' | 'cf_agent_state';
+        'connection_status' | 'connected' | 'cf_agent_state' |
+        'run_paused' | 'continuation_mode_updated' | 'continue_run_result';
   data?: any; // Optional - some message types don't use data wrapper
   content?: string; // For message types - content at top level
   role?: string; // For message types
   timestamp?: string;
   // Additional fields the server may include
   threadId?: string;
+  runId?: string;
   assistantId?: string;
   agentId?: string;
   projectId?: string;

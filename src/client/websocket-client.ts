@@ -49,6 +49,7 @@ export interface WebSocketConfig {
   reconnectAttempts?: number;
   reconnectDelay?: number;
   debug?: boolean; // Enable debug logging
+  continuationMode?: 'auto' | 'manual';
 }
 
 export class RagwallaWebSocket {
@@ -61,12 +62,14 @@ export class RagwallaWebSocket {
   private listeners: Map<string, Set<Function>> = new Map();
   private eventHandlers: Map<string, (event: any) => void> = new Map();
   private debug: boolean;
+  private continuationMode: 'auto' | 'manual';
 
   constructor(config: WebSocketConfig) {
     this.validateAndSetWebSocketURL(config.baseURL);
     this.reconnectAttempts = config.reconnectAttempts || 3;
     this.reconnectDelay = config.reconnectDelay || 1000;
     this.debug = config.debug || false;
+    this.continuationMode = config.continuationMode === 'manual' ? 'manual' : 'auto';
   }
 
   private log(level: 'info' | 'warn' | 'error', message: string, data?: any): void {
@@ -111,13 +114,18 @@ export class RagwallaWebSocket {
    * Connect to an agent's WebSocket endpoint
    */
   async connect(agentId: string, connectionId: string, token: string): Promise<void> {
-    const url = `${this.baseURL}/agents/${agentId}/${connectionId}?token=${token}`;
+    const params = new URLSearchParams({
+      token,
+      continuation_mode: this.continuationMode
+    });
+    const url = `${this.baseURL}/agents/${agentId}/${connectionId}?${params.toString()}`;
     
     this.log('info', 'Attempting to connect to WebSocket', { 
       url, 
       agentId, 
       connectionId,
-      tokenLength: token.length 
+      tokenLength: token.length,
+      continuationMode: this.continuationMode
     });
     
     return new Promise((resolve, reject) => {
@@ -253,6 +261,40 @@ export class RagwallaWebSocket {
   }
 
   /**
+   * Update the continuation mode used for this connection.
+   * When connected, this will notify the agent immediately.
+   */
+  setContinuationMode(mode: 'auto' | 'manual'): void {
+    const normalized = mode === 'manual' ? 'manual' : 'auto';
+    this.continuationMode = normalized;
+
+    if (this.isConnected()) {
+      this.log('info', 'Sending continuation mode update', { mode: normalized });
+      this.send({
+        type: 'set_continuation_mode',
+        mode: normalized
+      });
+    } else {
+      this.log('info', 'Continuation mode updated (will apply on next connect)', { mode: normalized });
+    }
+  }
+
+  /**
+   * Request the agent to resume a paused run (manual continuation mode).
+   */
+  continueRun(runId: string): void {
+    if (!runId) {
+      throw new Error('runId is required to continue a run');
+    }
+
+    this.log('info', 'Sending continue run request', { runId });
+    this.send({
+      type: 'continue_run',
+      runId
+    });
+  }
+
+  /**
    * Check if WebSocket is connected
    */
   isConnected(): boolean {
@@ -360,6 +402,15 @@ export class RagwallaWebSocket {
         break;
       case 'token_usage':
         this.emit('tokenUsage', message.data);
+        break;
+      case 'run_paused':
+        this.emit('runPaused', message.data || message);
+        break;
+      case 'continuation_mode_updated':
+        this.emit('continuationModeUpdated', message.data || message);
+        break;
+      case 'continue_run_result':
+        this.emit('continueRunResult', message.data || message);
         break;
       case 'error':
         this.emit('error', message.data || { error: message.content });

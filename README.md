@@ -30,8 +30,10 @@ const tokenResponse = await ragwalla.agents.getToken({
   expires_in: 3600
 });
 
-// Create WebSocket connection
-const ws = ragwalla.createWebSocket();
+// Create WebSocket connection (optional continuation mode defaults to 'auto')
+const ws = ragwalla.createWebSocket({
+  continuationMode: 'auto' // or 'manual' to require explicit resume events
+});
 
 ws.on('connected', () => {
   ws.sendMessage({ role: 'user', content: 'Hello!' });
@@ -223,6 +225,9 @@ The WebSocket client emits the following events:
 - `threadInfo` - Thread information (`{ threadId, assistantId, isNewThread }`)
 - `typing` - Typing indicator (`{ isTyping }`)
 - `toolUse` - Tool usage information (`{ tools }`)
+- `runPaused` - Invocation paused awaiting manual resume (`{ runId, threadId, reason, stats })`
+- `continuationModeUpdated` - Server acknowledged continuation mode change
+- `continueRunResult` - Response to a `continue_run` request (`{ status, runId, error? }`)
 
 #### Other Events
 - `tokenUsage` - Token usage statistics
@@ -255,6 +260,29 @@ ws.on('message', (message) => {
 
 await ws.connect(agent.id, 'session-id', token);
 ws.sendMessage({ role: 'user', content: 'Hello!' });
+```
+
+### Manual Continuation Workflow
+
+Agents can pause execution when they hit invocation limits. Switch to manual mode to let users decide when to resume:
+
+```typescript
+const ws = ragwalla.createWebSocket({ continuationMode: 'manual' });
+
+ws.on('runPaused', ({ runId, reason }) => {
+  console.log('Run paused', runId, reason);
+  // Trigger your UI to show a Continue button, then call continueRun when ready
+  ws.continueRun(runId);
+});
+
+await ws.connect(agent.id, 'session-id', token);
+```
+
+You can toggle modes at runtime:
+
+```typescript
+ws.setContinuationMode('manual'); // switch to manual
+ws.setContinuationMode('auto');   // revert to auto scheduling
 ```
 
 ## Vector Search

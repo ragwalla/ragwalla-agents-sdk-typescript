@@ -22,7 +22,7 @@ export class Ragwalla {
     this.httpClient = new HTTPClient(config);
     this.agents = new AgentsResource(this.httpClient);
     this.vectorStores = new VectorStoresResource(this.httpClient);
-    this.quota = new QuotaResource(this.httpClient);
+   this.quota = new QuotaResource(this.httpClient);
   }
 
   /**
@@ -31,6 +31,7 @@ export class Ragwalla {
   createWebSocket(config?: {
     reconnectAttempts?: number;
     reconnectDelay?: number;
+    continuationMode?: 'auto' | 'manual';
   }): RagwallaWebSocket {
     return new RagwallaWebSocket({
       baseURL: this.config.baseURL,
