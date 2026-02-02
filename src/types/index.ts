@@ -137,8 +137,14 @@ export interface WebSocketMessage {
   tools?: string[]; // For tool_use messages
   isNewThread?: boolean; // For thread_info messages
   assistantName?: string; // For thread_info messages
-  status?: string; // For status messages - e.g., 'tool_executing', 'generating'
+  status?: string; // For status messages - e.g., 'tool_executing', 'tool_complete', 'tool_progress', 'generating'
   message?: string; // For status messages - human-readable description
+  toolName?: string; // For status messages - the tool being executed
+  toolCallId?: string; // For status messages - unique ID for this tool invocation
+  toolType?: 'system' | 'mcp' | 'user' | 'unknown'; // For status messages - tool classification
+  serverName?: string; // For MCP tool status messages - the MCP server name
+  progress?: number; // For tool_progress status - current progress value (from MCP notifications/progress)
+  total?: number; // For tool_progress status - total expected value (from MCP notifications/progress)
 }
 
 export interface RagwallaError {

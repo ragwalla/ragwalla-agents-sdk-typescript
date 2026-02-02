@@ -401,10 +401,16 @@ export class RagwallaWebSocket {
         });
         break;
       case 'status':
-        // Transient status update (e.g., tool executing, generating response)
+        // Transient status update (e.g., tool executing, generating response, MCP progress)
         this.emit('status', {
           status: (message as any).status,
-          message: (message as any).message
+          message: (message as any).message,
+          toolName: (message as any).toolName,
+          toolCallId: (message as any).toolCallId,
+          toolType: (message as any).toolType,
+          serverName: (message as any).serverName,
+          progress: (message as any).progress,
+          total: (message as any).total
         });
         break;
       case 'token_usage':
