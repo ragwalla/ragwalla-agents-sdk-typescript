@@ -463,14 +463,49 @@ await ws.connect(agentId, 'main', token);
 
 ## Examples
 
-Check the `examples/` directory for complete usage examples:
+The `examples/` directory contains both basic and production-ready examples to help you integrate the SDK into your applications.
 
-- `basic-usage.ts` - Agent CRUD operations and token generation
-- `streaming-chat.ts` - Streaming responses via WebSocket
-- `websocket-chat.ts` - Real-time WebSocket communication
-- `vector-search.ts` - Vector store search examples
-- `cloudflare-workers.ts` - Complete Cloudflare Workers implementation
-- `debug-websocket.ts` - WebSocket debugging with detailed logging
+### Getting Started Examples
+
+Perfect for learning the basics:
+
+- **`basic-usage.ts`** - Agent CRUD operations and token generation
+- **`streaming-chat.ts`** - Streaming responses via WebSocket
+- **`websocket-chat.ts`** - Real-time WebSocket communication
+- **`advanced-websocket.ts`** - All event types and advanced patterns
+- **`vector-search.ts`** - Vector store search with filters
+- **`debug-websocket.ts`** - WebSocket debugging with detailed logging
+
+### Production-Ready Examples
+
+Battle-tested patterns for real-world applications:
+
+- **`error-handling.ts`** - Comprehensive error handling with retry logic, exponential backoff, user-friendly messages, and monitoring integration
+- **`conversation-management.ts`** - Multi-turn conversations with thread persistence, message history, and context management
+- **`tool-calling.ts`** - Function/tool execution with parallel execution, error handling, and security best practices
+- **`connection-resilience.ts`** - Advanced connection management with circuit breaker, message queueing, heartbeat monitoring, and network change detection
+- **`manual-continuation.ts`** - Manual continuation mode with budget management, approval workflows, and dynamic mode switching
+- **`react-integration.tsx`** - Complete React integration with custom hooks, optimistic updates, and TypeScript types
+
+### Platform-Specific Examples
+
+- **`cloudflare-workers.ts`** - Complete Cloudflare Workers implementation with WebSocket proxying
+
+### Running Examples
+
+```bash
+# Install dependencies
+npm install
+
+# Set your API key
+export RAGWALLA_API_KEY=your_api_key_here
+export RAGWALLA_BASE_URL=https://example.ai.ragwalla.com/v1
+
+# Run any example
+npx ts-node examples/basic-usage.ts
+npx ts-node examples/error-handling.ts
+npx ts-node examples/conversation-management.ts
+```
 
 ## Environment Variables
 

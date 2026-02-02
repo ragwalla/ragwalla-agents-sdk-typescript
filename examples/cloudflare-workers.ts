@@ -1,8 +1,14 @@
 import { Ragwalla, RagwallaWebSocket } from '@ragwalla/agents-sdk/workers';
 
+// Cloudflare Workers environment bindings
+interface Env {
+  RAGWALLA_API_KEY: string;
+  RAGWALLA_BASE_URL: string;
+}
+
 // Cloudflare Workers example
 export default {
-  async fetch(request: Request, env: any, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     // Initialize the Ragwalla client with environment variables
     const ragwalla = new Ragwalla({
       apiKey: env.RAGWALLA_API_KEY, // Set this in your Worker environment
@@ -19,32 +25,29 @@ export default {
         tools: []
       });
 
-      // Example 2: Chat with the agent
-      const chatResponse = await ragwalla.agents.createChatCompletion(agent.id, {
-        messages: [
-          { role: 'user', content: 'Hello, I need help with my order.' }
-        ],
-        max_tokens: 150,
+      // Example 2: Get WebSocket token for real-time chat
+      // Note: All agent chat happens via WebSocket, not HTTP
+      const tokenResponse = await ragwalla.agents.getToken({
+        agent_id: agent.id,
+        expires_in: 3600
       });
 
-      // Example 3: Streaming chat (for real-time responses)
-      const streamResponse = await ragwalla.agents.createChatCompletionStream(agent.id, {
-        messages: [
-          { role: 'user', content: 'What are your business hours?' }
-        ],
-        max_tokens: 100,
-      });
-
-      // Example 4: Vector search
+      // Example 3: Vector search (HTTP endpoint works fine for search)
       const searchResults = await ragwalla.vectorStores.search('your-vector-store-id', {
         query: 'product documentation',
-        limit: 5
+        top_k: 5
       });
+
+      // Construct WebSocket URL for the client to connect to
+      const wsBaseUrl = env.RAGWALLA_BASE_URL.replace('https://', 'wss://');
+      const websocketUrl = `${wsBaseUrl}/agents/${agent.id}/main?token=${tokenResponse.token}`;
 
       return new Response(JSON.stringify({
         agent: agent,
-        chatResponse: chatResponse,
+        websocketToken: tokenResponse.token,
+        websocketUrl: websocketUrl,
         searchResults: searchResults,
+        message: 'Agent created! Use the websocketUrl to connect and chat in real-time.',
         success: true
       }), {
         headers: { 'Content-Type': 'application/json' }
@@ -52,7 +55,7 @@ export default {
 
     } catch (error) {
       return new Response(JSON.stringify({
-        error: error.message,
+        error: error instanceof Error ? error.message : 'An error occurred',
         success: false
       }), {
         status: 500,
@@ -62,13 +65,15 @@ export default {
   },
 
   // WebSocket example for real-time chat
-  async webSocketHandler(request: Request, env: any): Promise<Response> {
+  async webSocketHandler(request: Request, env: Env): Promise<Response> {
     const upgradeHeader = request.headers.get('Upgrade');
     if (upgradeHeader !== 'websocket') {
       return new Response('Expected websocket', { status: 400 });
     }
 
-    const [client, server] = Object.values(new WebSocketPair());
+    // WebSocketPair is a Cloudflare Workers global
+    // @ts-ignore - WebSocketPair is available in Cloudflare Workers runtime
+    const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket];
 
     // Initialize Ragwalla WebSocket client
     const ragwalla = new Ragwalla({
@@ -91,20 +96,20 @@ export default {
       console.log('Connected to Ragwalla');
     });
 
-    ws.on('message', (message) => {
+    ws.on('message', (message: any) => {
       // Forward messages from Ragwalla to the client
       server.send(JSON.stringify(message));
     });
 
-    ws.on('error', (error) => {
+    ws.on('error', (error: any) => {
       console.error('WebSocket error:', error);
       server.close();
     });
 
     // Handle messages from the client
-    server.addEventListener('message', (event) => {
+    server.addEventListener('message', (event: MessageEvent) => {
       try {
-        const message = JSON.parse(event.data);
+        const message = JSON.parse(event.data as string);
         ws.sendMessage(message);
       } catch (error) {
         console.error('Failed to parse client message:', error);
@@ -118,9 +123,11 @@ export default {
     // Connect to Ragwalla
     await ws.connect('your-agent-id', 'main', tokenResponse.token);
 
+    // Return response with WebSocket (Cloudflare Workers specific)
+    // The webSocket property is valid in Cloudflare Workers but not in standard Response type
     return new Response(null, {
       status: 101,
       webSocket: client,
-    });
+    } as any);
   }
 };
