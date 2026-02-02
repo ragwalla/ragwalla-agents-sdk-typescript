@@ -400,6 +400,13 @@ export class RagwallaWebSocket {
           tools: (message as any).tools
         });
         break;
+      case 'status':
+        // Transient status update (e.g., tool executing, generating response)
+        this.emit('status', {
+          status: (message as any).status,
+          message: (message as any).message
+        });
+        break;
       case 'token_usage':
         this.emit('tokenUsage', message.data);
         break;

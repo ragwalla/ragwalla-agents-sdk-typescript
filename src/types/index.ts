@@ -115,10 +115,11 @@ export interface QuotaStatus {
 }
 
 export interface WebSocketMessage {
-  type: 'message' | 'chat_message' | 'chunk' | 'complete' | 'message_created' | 
-        'thread_info' | 'typing' | 'tool_use' | 'token_usage' | 'error' | 
+  type: 'message' | 'chat_message' | 'chunk' | 'complete' | 'message_created' |
+        'thread_info' | 'typing' | 'tool_use' | 'token_usage' | 'error' |
         'connection_status' | 'connected' | 'cf_agent_state' |
-        'run_paused' | 'continuation_mode_updated' | 'continue_run_result';
+        'run_paused' | 'continuation_mode_updated' | 'continue_run_result' |
+        'status';
   data?: any; // Optional - some message types don't use data wrapper
   content?: string; // For message types - content at top level
   role?: string; // For message types
@@ -136,6 +137,8 @@ export interface WebSocketMessage {
   tools?: string[]; // For tool_use messages
   isNewThread?: boolean; // For thread_info messages
   assistantName?: string; // For thread_info messages
+  status?: string; // For status messages - e.g., 'tool_executing', 'generating'
+  message?: string; // For status messages - human-readable description
 }
 
 export interface RagwallaError {
