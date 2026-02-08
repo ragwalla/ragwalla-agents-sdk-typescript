@@ -116,6 +116,7 @@ export class RagwallaWebSocket {
   async connect(agentId: string, connectionId: string, token: string): Promise<void> {
     const params = new URLSearchParams({
       token,
+      thread_id: connectionId,
       continuation_mode: this.continuationMode
     });
     const url = `${this.baseURL}/agents/${agentId}/${connectionId}?${params.toString()}`;
@@ -387,6 +388,14 @@ export class RagwallaWebSocket {
       case 'thread_info':
         // Thread information
         this.emit('threadInfo', message.data || message);
+        break;
+      case 'thread_history':
+        // Historical messages for the current thread
+        this.emit('threadHistory', {
+          threadId: (message as any).threadId,
+          messages: (message as any).messages || [],
+          messageCount: (message as any).messageCount || 0
+        });
         break;
       case 'typing':
         // Typing indicator

@@ -13,6 +13,27 @@ export interface Agent {
   instructions?: string;
   tools?: Tool[];
   metadata?: Record<string, any>;
+  temperature?: number;
+  topP?: number;
+  isEnabled?: boolean;
+  agentType?: 'orchestrator' | 'primary' | 'subagent';
+  modelConfig?: {
+    model: string;
+    temperature?: number;
+    topP?: number;
+    maxTokens?: number;
+  };
+  agentMetadata?: {
+    agentId: string;
+    agentType: string;
+    canDelegate: boolean;
+    canBeDelegatedTo: boolean;
+    maxDelegationDepth: number;
+    maxConcurrentDelegations?: number;
+    delegationTimeoutSeconds?: number;
+    createdAt: number;
+    updatedAt: number;
+  };
   created_at?: string;
   updated_at?: string;
 }
@@ -25,6 +46,51 @@ export interface CreateAgentRequest {
   tools?: string[];
   metadata?: Record<string, any>;
   project_id?: string;
+  temperature?: number;
+  topP?: number;
+}
+
+export interface UpdateAgentRequest {
+  name?: string;
+  description?: string;
+  instructions?: string;
+  model?: string;
+  temperature?: number;
+  topP?: number;
+  isEnabled?: boolean;
+  tools?: AgentTool[];
+  metadata?: Record<string, any>;
+  agentType?: 'orchestrator' | 'primary' | 'subagent';
+  canDelegate?: boolean;
+  canBeDelegatedTo?: boolean;
+  maxDelegationDepth?: number;
+}
+
+export type AgentTool = Tool;
+
+// Model types
+
+export interface ModelInfo {
+  id: string;
+  name?: string;
+  description?: string;
+  context_length?: number;
+  pricing?: {
+    prompt: string;
+    completion: string;
+  };
+  top_provider?: {
+    max_completion_tokens?: number;
+  };
+}
+
+export interface ModelsListResponse {
+  object: 'list';
+  data: ModelInfo[];
+  curated: string[];
+  model_ids: string[];
+  providers: string[];
+  total_count: number;
 }
 
 export type ToolType = 'function' | 'assistant' | 'api' | 'knowledge_base' | 'mcp' | 'system';
@@ -428,7 +494,7 @@ export interface QuotaStatus {
 
 export interface WebSocketMessage {
   type: 'message' | 'chat_message' | 'chunk' | 'complete' | 'message_created' |
-        'thread_info' | 'typing' | 'tool_use' | 'token_usage' | 'error' |
+        'thread_info' | 'thread_history' | 'typing' | 'tool_use' | 'token_usage' | 'error' |
         'connection_status' | 'connected' | 'cf_agent_state' |
         'run_paused' | 'continuation_mode_updated' | 'continue_run_result' |
         'status';

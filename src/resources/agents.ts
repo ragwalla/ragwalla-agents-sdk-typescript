@@ -2,6 +2,7 @@ import { HTTPClient } from '../client/http-client';
 import {
   Agent,
   CreateAgentRequest,
+  UpdateAgentRequest,
   ConnectionToken,
   Tool,
   ToolType,
@@ -40,7 +41,7 @@ export class AgentsResource {
   /**
    * Update an agent
    */
-  async update(agentId: string, request: Partial<CreateAgentRequest>): Promise<Agent> {
+  async update(agentId: string, request: UpdateAgentRequest): Promise<Agent> {
     return this.client.put<Agent>(`/v1/agents/${agentId}`, request);
   }
 

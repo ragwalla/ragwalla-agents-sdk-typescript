@@ -2,21 +2,25 @@ import { HTTPClient } from './client/http-client';
 import { RagwallaWebSocket } from './client/websocket-client';
 import { AgentsResource } from './resources/agents';
 import { AssistantsResource } from './resources/assistants';
+import { ThreadsResource } from './resources/threads';
 import { VectorStoresResource } from './resources/vector-stores';
 import { QuotaResource } from './resources/quota';
 import { MCPServersResource } from './resources/mcp-servers';
 import { ChannelsResource } from './resources/channels';
 import { OrganizationsResource } from './resources/organizations';
+import { ModelsResource } from './resources/models';
 import { RagwallaConfig } from './types';
 
 export class Ragwalla {
   public readonly agents: AgentsResource;
   public readonly assistants: AssistantsResource;
+  public readonly threads: ThreadsResource;
   public readonly vectorStores: VectorStoresResource;
   public readonly quota: QuotaResource;
   public readonly mcpServers: MCPServersResource;
   public readonly channels: ChannelsResource;
   public readonly organizations: OrganizationsResource;
+  public readonly models: ModelsResource;
 
   private httpClient: HTTPClient;
   private config: RagwallaConfig;
@@ -30,11 +34,13 @@ export class Ragwalla {
     this.httpClient = new HTTPClient(config);
     this.agents = new AgentsResource(this.httpClient);
     this.assistants = new AssistantsResource(this.httpClient);
+    this.threads = new ThreadsResource(this.httpClient);
     this.vectorStores = new VectorStoresResource(this.httpClient);
     this.quota = new QuotaResource(this.httpClient);
     this.mcpServers = new MCPServersResource(this.httpClient);
     this.channels = new ChannelsResource(this.httpClient);
     this.organizations = new OrganizationsResource(this.httpClient);
+    this.models = new ModelsResource(this.httpClient);
   }
 
   /**
@@ -66,11 +72,13 @@ export * from './client/http-client';
 export * from './client/websocket-client';
 export * from './resources/agents';
 export * from './resources/assistants';
+export * from './resources/threads';
 export * from './resources/vector-stores';
 export * from './resources/quota';
 export * from './resources/mcp-servers';
 export * from './resources/channels';
 export * from './resources/organizations';
+export * from './resources/models';
 
 // Default export
 export default Ragwalla;

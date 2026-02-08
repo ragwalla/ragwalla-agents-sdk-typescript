@@ -2,8 +2,10 @@
 export * from './types';
 export * from './resources/agents';
 export * from './resources/assistants';
+export * from './resources/threads';
 export * from './resources/vector-stores';
 export * from './resources/quota';
+export * from './resources/models';
 export { HTTPClient, RagwallaAPIError } from './client/http-client';
 export { RagwallaWebSocket } from './client/websocket-client';
 
@@ -12,8 +14,10 @@ import { HTTPClient } from './client/http-client';
 import { RagwallaWebSocket } from './client/websocket-client';
 import { AgentsResource } from './resources/agents';
 import { AssistantsResource } from './resources/assistants';
+import { ThreadsResource } from './resources/threads';
 import { VectorStoresResource } from './resources/vector-stores';
 import { QuotaResource } from './resources/quota';
+import { ModelsResource } from './resources/models';
 
 /**
  * Ragwalla SDK optimized for Cloudflare Workers
@@ -30,9 +34,11 @@ import { QuotaResource } from './resources/quota';
 export class Ragwalla {
   public readonly agents: AgentsResource;
   public readonly assistants: AssistantsResource;
+  public readonly threads: ThreadsResource;
   public readonly vectorStores: VectorStoresResource;
   public readonly quota: QuotaResource;
-  
+  public readonly models: ModelsResource;
+
   private config: RagwallaConfig;
 
   constructor(config: RagwallaConfig) {
@@ -44,8 +50,10 @@ export class Ragwalla {
     const client = new HTTPClient(config);
     this.agents = new AgentsResource(client);
     this.assistants = new AssistantsResource(client);
+    this.threads = new ThreadsResource(client);
     this.vectorStores = new VectorStoresResource(client);
     this.quota = new QuotaResource(client);
+    this.models = new ModelsResource(client);
   }
 
   /**
