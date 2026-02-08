@@ -642,3 +642,107 @@ export interface UpdateProjectRequest {
   name: string;
   description?: string;
 }
+
+// Skill types
+
+export interface Skill {
+  id: string;
+  name: string;
+  description?: string;
+  version: string;
+  tools?: SkillTool[];
+  requires?: { bins?: string[]; services?: string[] };
+  config_schema?: Record<string, unknown>;
+  is_bundled: boolean;
+  enabled: boolean;
+  created_at: number;
+  updated_at?: number;
+}
+
+export interface SkillTool {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+  code?: string;
+  type?: string;
+}
+
+export interface SkillSummary {
+  id: string;
+  name: string;
+  description?: string;
+  version: string;
+  is_bundled: boolean;
+  enabled: boolean;
+  created_at: number;
+}
+
+export interface InstalledSkill {
+  id: string;
+  name: string;
+  description?: string;
+  version: string;
+  tool_count: number;
+  config?: Record<string, unknown>;
+  enabled: boolean;
+  installed_at: number;
+}
+
+export interface CreateSkillRequest {
+  name: string;
+  description?: string;
+  version?: string;
+  tools: SkillTool[];
+  requires?: { bins?: string[]; services?: string[] };
+  config_schema?: Record<string, unknown>;
+}
+
+export interface InstallSkillResponse {
+  installed: boolean;
+  agent_id: string;
+  skill_id: string;
+  tools_materialized: number;
+  tools_deployed: number;
+}
+
+export interface UninstallSkillResponse {
+  uninstalled: boolean;
+  agent_id: string;
+  skill_id: string;
+  tools_removed: number;
+  errors?: string[];
+}
+
+// Workspace File types
+
+export type WorkspaceFileType = 'soul' | 'identity' | 'user' | 'tools' | 'bootstrap' | 'boot' | 'heartbeat' | 'custom';
+
+export interface WorkspaceFile {
+  id: string;
+  agentId: string;
+  fileType: WorkspaceFileType;
+  fileName: string;
+  content: string;
+  enabled: boolean;
+  priority: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreateWorkspaceFileRequest {
+  file_type: WorkspaceFileType;
+  content: string;
+  file_name?: string;
+}
+
+export interface UpdateWorkspaceFileRequest {
+  content?: string;
+  file_name?: string;
+  enabled?: boolean;
+}
+
+export interface WorkspacePreview {
+  agentId: string;
+  hasWorkspace: boolean;
+  composedPrompt: string | null;
+}
