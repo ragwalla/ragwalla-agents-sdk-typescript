@@ -2,6 +2,7 @@
   "name": "@ragwalla/agents-sdk",
   "version": "1.3.1",
   "description": "TypeScript SDK for Ragwalla Agents API",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {

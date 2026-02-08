@@ -1,6 +1,7 @@
 // Workers-specific export that excludes Node.js dependencies
 export * from './types';
 export * from './resources/agents';
+export * from './resources/assistants';
 export * from './resources/vector-stores';
 export * from './resources/quota';
 export { HTTPClient, RagwallaAPIError } from './client/http-client';
@@ -10,6 +11,7 @@ import { RagwallaConfig } from './types';
 import { HTTPClient } from './client/http-client';
 import { RagwallaWebSocket } from './client/websocket-client';
 import { AgentsResource } from './resources/agents';
+import { AssistantsResource } from './resources/assistants';
 import { VectorStoresResource } from './resources/vector-stores';
 import { QuotaResource } from './resources/quota';
 
@@ -27,6 +29,7 @@ import { QuotaResource } from './resources/quota';
  */
 export class Ragwalla {
   public readonly agents: AgentsResource;
+  public readonly assistants: AssistantsResource;
   public readonly vectorStores: VectorStoresResource;
   public readonly quota: QuotaResource;
   
@@ -40,6 +43,7 @@ export class Ragwalla {
     this.config = config;
     const client = new HTTPClient(config);
     this.agents = new AgentsResource(client);
+    this.assistants = new AssistantsResource(client);
     this.vectorStores = new VectorStoresResource(client);
     this.quota = new QuotaResource(client);
   }

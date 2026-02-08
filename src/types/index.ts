@@ -24,23 +24,335 @@ export interface CreateAgentRequest {
   instructions?: string;
   tools?: string[];
   metadata?: Record<string, any>;
+  project_id?: string;
 }
 
-export interface Tool {
+export type ToolType = 'function' | 'assistant' | 'api' | 'knowledge_base' | 'mcp' | 'system';
+
+export interface BaseTool {
   id: string;
-  type: 'function' | 'assistant' | 'vector_store';
-  name?: string;
+  type: ToolType;
+  name: string;
+  title?: string;
   description?: string;
-  function?: ToolFunction;
-  assistant_id?: string;
-  vector_store_id?: string;
   metadata?: Record<string, any>;
 }
 
+export interface FunctionTool extends BaseTool {
+  type: 'function';
+  code: string;
+  parameters?: Record<string, any>;
+  timeout?: number;
+  memoryLimit?: number;
+}
+
+export interface AssistantTool extends BaseTool {
+  type: 'assistant';
+  assistantId: string;
+  specialties?: string[];
+  whenToUse?: string;
+  defaultParameters?: {
+    temperature?: number;
+    maxTokens?: number;
+    topP?: number;
+  };
+}
+
+export interface ApiTool extends BaseTool {
+  type: 'api';
+  endpoint: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  headers?: Record<string, string>;
+  parameters?: Record<string, any>;
+  authentication?: {
+    type: 'bearer' | 'api-key' | 'basic';
+    credentials: string;
+  };
+}
+
+export interface KnowledgeBaseTool extends BaseTool {
+  type: 'knowledge_base';
+  vectorStoreId: string;
+  searchParameters?: {
+    topK?: number;
+    scoreThreshold?: number;
+  };
+}
+
+export interface MCPTool extends BaseTool {
+  type: 'mcp';
+  serverId: string;
+  serverName?: string;
+  serverUrl?: string;
+  toolName: string;
+  protocolVersion?: string;
+  transportType?: 'stdio' | 'http' | 'websocket';
+  parameters?: Record<string, any>;
+}
+
+export interface SystemTool extends BaseTool {
+  type: 'system';
+  category?: string;
+  parameters?: Record<string, any>;
+}
+
+export type Tool = FunctionTool | AssistantTool | ApiTool | KnowledgeBaseTool | MCPTool | SystemTool;
+
+/** @deprecated Use Tool instead */
 export interface ToolFunction {
   name: string;
   description?: string;
   parameters?: Record<string, any>;
+}
+
+// Assistant types (OpenAI Assistants-style resources)
+
+export type AssistantResponseFormat = {
+  type: 'text' | 'json_object';
+};
+
+export type AssistantChunkingStrategy =
+  | { type: 'auto' }
+  | {
+      type: 'static';
+      static: {
+        max_chunk_size_tokens: number;
+        chunk_overlap_tokens: number;
+      };
+    };
+
+export interface AssistantFunctionObject {
+  name: string;
+  description?: string;
+  parameters: Record<string, any>;
+  strict?: boolean;
+}
+
+export interface AssistantCodeInterpreterTool {
+  type: 'code_interpreter';
+}
+
+export interface AssistantFileSearchTool {
+  type: 'file_search';
+  file_search?: {
+    max_num_results?: number;
+    ranking_options?: {
+      ranker: 'auto' | 'default_2024_08_21';
+      score_threshold: number;
+    };
+  };
+}
+
+export interface AssistantFunctionTool {
+  type: 'function';
+  function: AssistantFunctionObject;
+}
+
+export type AssistantToolDefinition =
+  | AssistantCodeInterpreterTool
+  | AssistantFileSearchTool
+  | AssistantFunctionTool;
+
+export interface AssistantToolResources {
+  code_interpreter?: {
+    file_ids: string[];
+  };
+  file_search?: {
+    vector_store_ids?: string[];
+    vector_stores?: Array<{
+      file_ids: string[];
+      chunking_strategy?: AssistantChunkingStrategy;
+      metadata?: Record<string, string>;
+    }>;
+  };
+}
+
+export interface AssistantEmbeddingSettings {
+  model: string;
+  dimensions?: number;
+  options?: Record<string, any>;
+}
+
+export interface AssistantConfig {
+  model: string;
+  embedding_settings?: AssistantEmbeddingSettings;
+  instructions?: string | null;
+  tools?: AssistantToolDefinition[];
+  tool_resources?: AssistantToolResources | null;
+  metadata?: Record<string, string> | null;
+  temperature?: number | null;
+  top_p?: number | null;
+  response_format?: AssistantResponseFormat | null;
+}
+
+export interface Assistant {
+  id: string;
+  object: 'assistant';
+  created_at: number;
+  updated_at?: number;
+  name: string;
+  description: string | null;
+  model: string;
+  embedding_settings?: AssistantEmbeddingSettings;
+  instructions: string | null;
+  tools: AssistantToolDefinition[];
+  tool_resources: AssistantToolResources | null;
+  metadata: Record<string, string> | null;
+  temperature: number;
+  top_p: number;
+  response_format: AssistantResponseFormat | null;
+  project_id?: string;
+}
+
+export interface AssistantList {
+  object: 'list';
+  data: Assistant[];
+  first_id: string | null;
+  last_id: string | null;
+  has_more: boolean;
+}
+
+export interface AssistantDeleted {
+  id: string;
+  object: 'assistant.deleted';
+  deleted: boolean;
+}
+
+export type CreateAssistantParams = AssistantConfig & {
+  name?: string;
+  description?: string;
+  status?: string;
+  project_id?: string;
+};
+
+export interface AssistantResourceCreateRequest {
+  name?: string;
+  description?: string;
+  resource_type: 'assistant';
+  config: AssistantConfig;
+  status?: string;
+  project_id?: string;
+}
+
+export type CreateAssistantRequest = CreateAssistantParams | AssistantResourceCreateRequest;
+
+export type UpdateAssistantParams = Partial<AssistantConfig> & {
+  name?: string;
+  description?: string | null;
+  status?: string;
+};
+
+export interface AssistantResourceUpdateRequest {
+  name?: string;
+  description?: string | null;
+  resource_type?: 'assistant';
+  config?: Partial<AssistantConfig>;
+  status?: string;
+}
+
+export type UpdateAssistantRequest = UpdateAssistantParams | AssistantResourceUpdateRequest;
+
+// MCP Server types
+
+export type MCPTransportType = 'stdio' | 'http' | 'websocket';
+export type MCPAuthType = 'none' | 'bearer' | 'api_key' | 'oauth2';
+
+export interface MCPServer {
+  id: string;
+  name: string;
+  description?: string;
+  url?: string;
+  command?: string;
+  transport_type: MCPTransportType;
+  protocol_version: string;
+  auth_type: MCPAuthType;
+  status: string;
+  supports_sse?: boolean;
+  capabilities?: Record<string, any>;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CreateMCPServerRequest {
+  name: string;
+  description?: string;
+  url?: string;
+  command?: string;
+  transport_type: MCPTransportType;
+  protocol_version?: string;
+  auth_type?: MCPAuthType;
+  auth_config?: Record<string, string>;
+  supports_sse?: boolean;
+}
+
+export interface UpdateMCPServerRequest {
+  name?: string;
+  description?: string;
+  url?: string;
+  command?: string;
+  transport_type?: MCPTransportType;
+  protocol_version?: string;
+  auth_type?: MCPAuthType;
+  auth_config?: Record<string, string>;
+  supports_sse?: boolean;
+}
+
+export interface TestMCPServerRequest {
+  name: string;
+  url?: string;
+  transport_type: MCPTransportType;
+  protocol_version?: string;
+  auth_type?: MCPAuthType;
+  auth_config?: Record<string, string>;
+  supports_sse?: boolean;
+}
+
+export interface MCPDiscoveredTool {
+  name: string;
+  title?: string;
+  description?: string;
+  inputSchema?: Record<string, any>;
+}
+
+export interface MCPDiscoverResponse {
+  tools: MCPDiscoveredTool[];
+  server_info?: {
+    name?: string;
+    version?: string;
+    protocolVersion?: string;
+    capabilities?: Record<string, any>;
+  };
+}
+
+export interface MCPTestResponse {
+  success: boolean;
+  message: string;
+  tools?: Array<{ name: string; title?: string; description?: string }>;
+  serverInfo?: {
+    name?: string;
+    version?: string;
+    protocolVersion?: string;
+  };
+  validation?: {
+    valid: boolean;
+    errors: Array<{ toolName: string; field: string; message: string }>;
+  };
+}
+
+export interface MCPAgentAccess {
+  id: string;
+  agent_id: string;
+  mcp_server_id: string;
+  enabled: boolean;
+  agent_name?: string;
+  agent_description?: string;
+  granted_by: string;
+  granted_at: number;
+}
+
+export interface GrantAgentAccessRequest {
+  agent_id: string;
+  enabled?: boolean;
 }
 
 export interface ChatMessage {
@@ -152,4 +464,115 @@ export interface RagwallaError {
   code?: string;
   message: string;
   param?: string;
+}
+
+// Channel types
+
+export type ChannelType = 'slack' | 'discord' | 'telegram' | 'webhook' | 'whatsapp' | 'teams';
+export type WebhookStatus = 'pending' | 'registered' | 'failed' | 'manual';
+
+export interface Channel {
+  id: string;
+  agent_id: string;
+  channel_type: ChannelType;
+  enabled: boolean;
+  session_scope?: string;
+  webhook_url?: string;
+  webhook_status?: WebhookStatus;
+  webhook_error?: string;
+  webhook_registered_at?: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CreateChannelRequest {
+  channel_type: ChannelType;
+  config: Record<string, unknown>;
+  session_scope?: string;
+  hook_token?: string;
+}
+
+export interface CreateChannelResponse {
+  id: string;
+  agent_id: string;
+  channel_type: ChannelType;
+  webhook_url?: string;
+  webhook_status: WebhookStatus;
+  webhook_error?: string;
+  setup_instructions?: string;
+  created_at: number;
+}
+
+export interface ChannelStatus {
+  id: string;
+  agent_id: string;
+  channel_type: ChannelType;
+  enabled: boolean;
+  webhook_url?: string;
+  webhook_status?: WebhookStatus;
+  webhook_error?: string;
+  webhook_registered_at?: number;
+  live_status?: {
+    url?: string;
+    pending_update_count?: number;
+    last_error_message?: string;
+    last_error_date?: number;
+  };
+}
+
+export interface WebhookRetryResponse {
+  success: boolean;
+  webhook_status: WebhookStatus;
+  webhook_url?: string;
+  webhook_error?: string;
+}
+
+// Organization types
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  settings?: string;
+  created_at: number;
+  updated_at: number;
+  projects?: Project[];
+}
+
+export interface OrganizationList {
+  object: 'list';
+  data: Organization[];
+  first_id: string | null;
+  last_id: string | null;
+  has_more: boolean;
+}
+
+// Project types
+export interface Project {
+  id: string;
+  object: string;
+  name: string;
+  description?: string;
+  organization_id: string;
+  created_at: number;
+  updated_at: number;
+  status: string;
+  archived_at?: number | null;
+}
+
+export interface ProjectList {
+  object: 'list';
+  data: Project[];
+  first_id: string | null;
+  last_id: string | null;
+  has_more: boolean;
+}
+
+export interface CreateProjectRequest {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateProjectRequest {
+  name: string;
+  description?: string;
 }

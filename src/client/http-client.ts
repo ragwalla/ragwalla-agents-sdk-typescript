@@ -55,7 +55,9 @@ export class HTTPClient {
 
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
+      const body = await response.json().catch(() => ({}));
+      // ragwalla-hono-worker wraps errors in { error: { message, type, code } }
+      const error = body.error || body;
       throw new RagwallaAPIError(
         error.message || `HTTP ${response.status}`,
         response.status,

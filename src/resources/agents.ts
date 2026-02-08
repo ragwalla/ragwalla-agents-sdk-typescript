@@ -1,9 +1,11 @@
 import { HTTPClient } from '../client/http-client';
-import { 
-  Agent, 
-  CreateAgentRequest, 
+import {
+  Agent,
+  CreateAgentRequest,
   ConnectionToken,
-  Tool
+  Tool,
+  ToolType,
+  SystemTool,
 } from '../types';
 
 export class AgentsResource {
@@ -66,7 +68,7 @@ export class AgentsResource {
    */
   async listTools(
     agentId: string,
-    params?: { type?: 'function' | 'assistant' | 'vector_store' }
+    params?: { type?: ToolType }
   ): Promise<{ object: 'list'; data: Tool[] }> {
     return this.client.get<{ object: 'list'; data: Tool[] }>(`/v1/agents/${agentId}/tools`, params);
   }
@@ -79,9 +81,30 @@ export class AgentsResource {
   }
 
   /**
+   * Update an existing tool on an agent
+   */
+  async updateTool(agentId: string, toolId: string, updates: Partial<Tool>): Promise<Tool> {
+    return this.client.put<Tool>(`/v1/agents/${agentId}/tools/${toolId}`, updates);
+  }
+
+  /**
    * Remove a tool from an agent
    */
   async detachTool(agentId: string, toolId: string): Promise<{ id: string; object: 'tool'; deleted: boolean }> {
     return this.client.delete<{ id: string; object: 'tool'; deleted: boolean }>(`/v1/agents/${agentId}/tools/${toolId}`);
+  }
+
+  /**
+   * List available system tools that can be enabled for agents
+   */
+  async listSystemTools(): Promise<{ object: 'list'; data: SystemTool[] }> {
+    return this.client.get<{ object: 'list'; data: SystemTool[] }>('/v1/system-tools');
+  }
+
+  /**
+   * Enable a system tool for an agent
+   */
+  async enableSystemTool(agentId: string, toolId: string): Promise<Tool> {
+    return this.client.post<Tool>(`/v1/agents/${agentId}/tools/enable-system`, { toolId });
   }
 }

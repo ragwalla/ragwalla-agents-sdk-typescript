@@ -49,6 +49,7 @@ await ws.connect(agent.id, 'main', tokenResponse.token);
 ## Features
 
 - ✅ **Agent Management** - Create, update, and manage AI agents
+- ✅ **Assistant Management** - Create, update, and manage assistants
 - ✅ **Real-time WebSocket Chat** - Live streaming chat with automatic reconnection
 - ✅ **WebSocket-Only Communication** - All agent chat happens via WebSocket (no HTTP chat endpoints)
 - ✅ **Vector Search** - Semantic search across knowledge bases
@@ -132,6 +133,59 @@ const updatedAgent = await ragwalla.agents.update(agent.id, {
 
 ```typescript
 await ragwalla.agents.delete(agent.id);
+```
+
+## Assistant Management
+
+### Create an Assistant
+
+```typescript
+const assistant = await ragwalla.assistants.create({
+  name: 'Math Tutor',
+  description: 'Helps users solve math problems',
+  model: 'gpt-4o',
+  instructions: 'You are a concise math tutor.',
+  tools: [
+    { type: 'code_interpreter' },
+    { type: 'file_search' }
+  ],
+  tool_resources: {
+    file_search: {
+      vector_store_ids: ['vs_123']
+    }
+  },
+  metadata: {
+    domain: 'education'
+  }
+});
+```
+
+### List Assistants
+
+```typescript
+const assistants = await ragwalla.assistants.list({
+  limit: 20,
+  order: 'desc'
+});
+
+console.log(assistants.data); // Array of assistants
+```
+
+### Update an Assistant
+
+```typescript
+const updatedAssistant = await ragwalla.assistants.update(assistant.id, {
+  instructions: 'Updated instructions for the assistant',
+  metadata: {
+    version: '2.0'
+  }
+});
+```
+
+### Delete an Assistant
+
+```typescript
+await ragwalla.assistants.delete(assistant.id);
 ```
 
 ## Important: WebSocket-Only Chat
