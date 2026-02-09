@@ -9,7 +9,6 @@ import { MCPServersResource } from './resources/mcp-servers';
 import { ChannelsResource } from './resources/channels';
 import { OrganizationsResource } from './resources/organizations';
 import { ModelsResource } from './resources/models';
-import { SkillsResource } from './resources/skills';
 import { WorkspaceFilesResource } from './resources/workspace-files';
 import { RagwallaConfig } from './types';
 
@@ -23,7 +22,6 @@ export class Ragwalla {
   public readonly channels: ChannelsResource;
   public readonly organizations: OrganizationsResource;
   public readonly models: ModelsResource;
-  public readonly skills: SkillsResource;
   public readonly workspaceFiles: WorkspaceFilesResource;
 
   private httpClient: HTTPClient;
@@ -45,7 +43,6 @@ export class Ragwalla {
     this.channels = new ChannelsResource(this.httpClient);
     this.organizations = new OrganizationsResource(this.httpClient);
     this.models = new ModelsResource(this.httpClient);
-    this.skills = new SkillsResource(this.httpClient);
     this.workspaceFiles = new WorkspaceFilesResource(this.httpClient);
   }
 
@@ -85,7 +82,6 @@ export * from './resources/mcp-servers';
 export * from './resources/channels';
 export * from './resources/organizations';
 export * from './resources/models';
-export * from './resources/skills';
 export * from './resources/workspace-files';
 
 // Default export

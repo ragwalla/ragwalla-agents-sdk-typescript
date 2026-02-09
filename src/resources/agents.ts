@@ -65,47 +65,80 @@ export class AgentsResource {
   }
 
   /**
-   * List tools attached to an agent
+   * List skills attached to an agent
    */
-  async listTools(
+  async listSkills(
     agentId: string,
     params?: { type?: ToolType }
   ): Promise<{ object: 'list'; data: Tool[] }> {
     return this.client.get<{ object: 'list'; data: Tool[] }>(`/v1/agents/${agentId}/tools`, params);
   }
 
+  /** @deprecated Use listSkills() instead */
+  async listTools(
+    agentId: string,
+    params?: { type?: ToolType }
+  ): Promise<{ object: 'list'; data: Tool[] }> {
+    return this.listSkills(agentId, params);
+  }
+
   /**
-   * Attach a tool to an agent
+   * Attach a skill to an agent
    */
+  async attachSkill(agentId: string, skill: Partial<Tool>): Promise<Tool> {
+    return this.client.post<Tool>(`/v1/agents/${agentId}/tools`, skill);
+  }
+
+  /** @deprecated Use attachSkill() instead */
   async attachTool(agentId: string, tool: Partial<Tool>): Promise<Tool> {
-    return this.client.post<Tool>(`/v1/agents/${agentId}/tools`, tool);
+    return this.attachSkill(agentId, tool);
   }
 
   /**
-   * Update an existing tool on an agent
+   * Update an existing skill on an agent
    */
+  async updateSkill(agentId: string, skillId: string, updates: Partial<Tool>): Promise<Tool> {
+    return this.client.put<Tool>(`/v1/agents/${agentId}/tools/${skillId}`, updates);
+  }
+
+  /** @deprecated Use updateSkill() instead */
   async updateTool(agentId: string, toolId: string, updates: Partial<Tool>): Promise<Tool> {
-    return this.client.put<Tool>(`/v1/agents/${agentId}/tools/${toolId}`, updates);
+    return this.updateSkill(agentId, toolId, updates);
   }
 
   /**
-   * Remove a tool from an agent
+   * Remove a skill from an agent
    */
+  async detachSkill(agentId: string, skillId: string): Promise<{ id: string; object: 'tool'; deleted: boolean }> {
+    return this.client.delete<{ id: string; object: 'tool'; deleted: boolean }>(`/v1/agents/${agentId}/tools/${skillId}`);
+  }
+
+  /** @deprecated Use detachSkill() instead */
   async detachTool(agentId: string, toolId: string): Promise<{ id: string; object: 'tool'; deleted: boolean }> {
-    return this.client.delete<{ id: string; object: 'tool'; deleted: boolean }>(`/v1/agents/${agentId}/tools/${toolId}`);
+    return this.detachSkill(agentId, toolId);
   }
 
   /**
-   * List available system tools that can be enabled for agents
+   * List available system skills that can be enabled for agents
    */
+  async listSystemSkills(): Promise<{ object: 'list'; data: SystemTool[] }> {
+    return this.client.get<{ object: 'list'; data: SystemTool[] }>('/v1/system-skills');
+  }
+
+  /** @deprecated Use listSystemSkills() instead */
   async listSystemTools(): Promise<{ object: 'list'; data: SystemTool[] }> {
-    return this.client.get<{ object: 'list'; data: SystemTool[] }>('/v1/system-tools');
+    return this.listSystemSkills();
   }
 
   /**
-   * Enable a system tool for an agent
+   * Enable a system skill for an agent
    */
+  async enableSystemSkill(agentId: string, skillId: string): Promise<Tool> {
+    return this.client.post<Tool>(`/v1/agents/${agentId}/tools/enable-system`, { toolId: skillId });
+  }
+
+  /** @deprecated Use enableSystemSkill() instead */
   async enableSystemTool(agentId: string, toolId: string): Promise<Tool> {
-    return this.client.post<Tool>(`/v1/agents/${agentId}/tools/enable-system`, { toolId });
+    return this.enableSystemSkill(agentId, toolId);
   }
 }
