@@ -12,6 +12,13 @@ import {
 export class AgentsResource {
   constructor(private client: HTTPClient) {}
 
+  private unwrapToolResponse(response: any): Tool {
+    if (response && typeof response === 'object' && 'tool' in response && response.tool) {
+      return response.tool as Tool;
+    }
+    return response as Tool;
+  }
+
   /**
    * Create a new agent
    */
@@ -86,7 +93,8 @@ export class AgentsResource {
    * Attach a skill to an agent
    */
   async attachSkill(agentId: string, skill: Partial<Tool>): Promise<Tool> {
-    return this.client.post<Tool>(`/v1/agents/${agentId}/tools`, skill);
+    const response = await this.client.post<any>(`/v1/agents/${agentId}/tools`, skill);
+    return this.unwrapToolResponse(response);
   }
 
   /** @deprecated Use attachSkill() instead */
@@ -98,7 +106,8 @@ export class AgentsResource {
    * Update an existing skill on an agent
    */
   async updateSkill(agentId: string, skillId: string, updates: Partial<Tool>): Promise<Tool> {
-    return this.client.put<Tool>(`/v1/agents/${agentId}/tools/${skillId}`, updates);
+    const response = await this.client.put<any>(`/v1/agents/${agentId}/tools/${skillId}`, updates);
+    return this.unwrapToolResponse(response);
   }
 
   /** @deprecated Use updateSkill() instead */
@@ -134,7 +143,8 @@ export class AgentsResource {
    * Enable a system skill for an agent
    */
   async enableSystemSkill(agentId: string, skillId: string): Promise<Tool> {
-    return this.client.post<Tool>(`/v1/agents/${agentId}/tools/enable-system`, { toolId: skillId });
+    const response = await this.client.post<any>(`/v1/agents/${agentId}/tools/enable-system`, { toolId: skillId });
+    return this.unwrapToolResponse(response);
   }
 
   /** @deprecated Use enableSystemSkill() instead */
