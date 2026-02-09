@@ -48,6 +48,8 @@ export interface CreateAgentRequest {
   project_id?: string;
   temperature?: number;
   topP?: number;
+  agentType?: 'orchestrator' | 'primary' | 'subagent';
+  executionMode?: 'assistant' | 'execution-only';
 }
 
 export interface UpdateAgentRequest {
@@ -61,6 +63,7 @@ export interface UpdateAgentRequest {
   tools?: AgentTool[];
   metadata?: Record<string, any>;
   agentType?: 'orchestrator' | 'primary' | 'subagent';
+  executionMode?: 'assistant' | 'execution-only';
   canDelegate?: boolean;
   canBeDelegatedTo?: boolean;
   maxDelegationDepth?: number;
