@@ -66,8 +66,8 @@ export class RagwallaWebSocket {
 
   constructor(config: WebSocketConfig) {
     this.validateAndSetWebSocketURL(config.baseURL);
-    this.reconnectAttempts = config.reconnectAttempts || 3;
-    this.reconnectDelay = config.reconnectDelay || 1000;
+    this.reconnectAttempts = config.reconnectAttempts ?? 3;
+    this.reconnectDelay = config.reconnectDelay ?? 1000;
     this.debug = config.debug || false;
     this.continuationMode = config.continuationMode === 'manual' ? 'manual' : 'auto';
   }
