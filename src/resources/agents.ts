@@ -151,4 +151,28 @@ export class AgentsResource {
   async enableSystemTool(agentId: string, toolId: string): Promise<Tool> {
     return this.enableSystemSkill(agentId, toolId);
   }
+
+  /**
+   * Grant delegation permission: allow this agent to delegate to targetAgentId
+   */
+  async grantDelegationPermission(
+    agentId: string,
+    targetAgentId: string,
+    targetAgentName?: string
+  ): Promise<{ success: boolean; source_agent_id: string; target_agent_id: string; tool_id: string }> {
+    return this.client.post(`/v1/agents/${agentId}/delegation-permissions`, {
+      targetAgentId,
+      targetAgentName,
+    });
+  }
+
+  /**
+   * Revoke delegation permission
+   */
+  async revokeDelegationPermission(
+    agentId: string,
+    targetAgentId: string
+  ): Promise<{ success: boolean; source_agent_id: string; target_agent_id: string }> {
+    return this.client.delete(`/v1/agents/${agentId}/delegation-permissions/${targetAgentId}`);
+  }
 }

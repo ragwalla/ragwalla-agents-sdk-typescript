@@ -112,13 +112,19 @@ export class RagwallaWebSocket {
 
   /**
    * Connect to an agent's WebSocket endpoint
+   * @param agentId - The agent to connect to
+   * @param connectionId - Connection identifier (used for DO routing)
+   * @param token - Authentication token
+   * @param threadId - Optional Ragwalla thread ID. If provided, resumes that thread. If omitted, a new thread is created on first message.
    */
-  async connect(agentId: string, connectionId: string, token: string): Promise<void> {
+  async connect(agentId: string, connectionId: string, token: string, threadId?: string): Promise<void> {
     const params = new URLSearchParams({
       token,
-      thread_id: connectionId,
       continuation_mode: this.continuationMode
     });
+    if (threadId) {
+      params.set('thread_id', threadId);
+    }
     const url = `${this.baseURL}/agents/${agentId}/${connectionId}?${params.toString()}`;
     
     this.log('info', 'Attempting to connect to WebSocket', { 
