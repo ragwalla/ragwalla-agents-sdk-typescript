@@ -5,6 +5,26 @@ export interface RagwallaConfig {
   debug?: boolean; // Enable debug logging
 }
 
+export interface SubagentLifecycleConfig {
+  autoTeardown?: 'manual' | 'after_delegation' | 'ttl';
+  ttlSeconds?: number;
+  maxActiveChildren?: number;
+  spawnTimeoutSeconds?: number;
+}
+
+export interface AgentChild {
+  id: string;
+  parent_agent_id: string;
+  child_agent_id: string;
+  ephemeral: boolean;
+  status: 'active' | 'torn_down';
+  created_at: number;
+  torn_down_at: number | null;
+  last_activity_at: number | null;
+  child_name?: string;
+  label?: string;
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -34,6 +54,7 @@ export interface Agent {
     createdAt: number;
     updatedAt: number;
   };
+  subagentLifecycle?: SubagentLifecycleConfig;
   created_at?: string;
   updated_at?: string;
 }
@@ -50,6 +71,7 @@ export interface CreateAgentRequest {
   topP?: number;
   agentType?: 'orchestrator' | 'primary' | 'subagent';
   executionMode?: 'assistant' | 'execution-only';
+  subagentLifecycle?: SubagentLifecycleConfig;
 }
 
 export interface UpdateAgentRequest {
@@ -67,6 +89,7 @@ export interface UpdateAgentRequest {
   canDelegate?: boolean;
   canBeDelegatedTo?: boolean;
   maxDelegationDepth?: number;
+  subagentLifecycle?: SubagentLifecycleConfig;
 }
 
 export type AgentTool = Tool;

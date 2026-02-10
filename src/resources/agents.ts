@@ -1,6 +1,7 @@
 import { HTTPClient } from '../client/http-client';
 import {
   Agent,
+  AgentChild,
   CreateAgentRequest,
   UpdateAgentRequest,
   ConnectionToken,
@@ -174,5 +175,35 @@ export class AgentsResource {
     targetAgentId: string
   ): Promise<{ success: boolean; source_agent_id: string; target_agent_id: string }> {
     return this.client.delete(`/v1/agents/${agentId}/delegation-permissions/${targetAgentId}`);
+  }
+
+  /**
+   * List active child agents (subagents) for an orchestrator agent
+   */
+  async listChildren(agentId: string): Promise<{ object: 'list'; data: AgentChild[] }> {
+    return this.client.get<{ object: 'list'; data: AgentChild[] }>(`/v1/agents/${agentId}/children`);
+  }
+
+  /**
+   * Tear down a specific child agent
+   */
+  async teardownChild(
+    agentId: string,
+    childAgentId: string
+  ): Promise<{ success: boolean; deleted: boolean }> {
+    return this.client.delete<{ success: boolean; deleted: boolean }>(
+      `/v1/agents/${agentId}/children/${childAgentId}`
+    );
+  }
+
+  /**
+   * Tear down all ephemeral child agents for an orchestrator agent
+   */
+  async teardownAllChildren(
+    agentId: string
+  ): Promise<{ success: boolean; torn_down: number }> {
+    return this.client.post<{ success: boolean; torn_down: number }>(
+      `/v1/agents/${agentId}/children/teardown-all`
+    );
   }
 }
