@@ -381,6 +381,8 @@ export interface CreateMCPServerRequest {
   auth_type?: MCPAuthType;
   auth_config?: Record<string, string>;
   supports_sse?: boolean;
+  /** Required for org-level API keys. Project-scoped keys resolve this automatically. */
+  project_id?: string;
 }
 
 export interface UpdateMCPServerRequest {
