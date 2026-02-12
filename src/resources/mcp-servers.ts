@@ -8,6 +8,9 @@ import {
   MCPTestResponse,
   MCPAgentAccess,
   GrantAgentAccessRequest,
+  MCPOAuthStartResponse,
+  MCPOAuthStatusResponse,
+  MCPOAuthRefreshResponse,
 } from '../types';
 
 export class MCPServersResource {
@@ -62,6 +65,34 @@ export class MCPServersResource {
    */
   async test(request: TestMCPServerRequest): Promise<MCPTestResponse> {
     return this.client.post<MCPTestResponse>('/v1/mcp-servers/test', request);
+  }
+
+  /**
+   * Start OAuth (authorization code) flow for an MCP server.
+   */
+  async startOAuth(serverId: string, redirectUri?: string): Promise<MCPOAuthStartResponse> {
+    return this.client.post<MCPOAuthStartResponse>(`/v1/mcp-servers/${serverId}/oauth/start`, redirectUri ? { redirect_uri: redirectUri } : {});
+  }
+
+  /**
+   * Get OAuth connection status for an MCP server.
+   */
+  async oauthStatus(serverId: string): Promise<MCPOAuthStatusResponse> {
+    return this.client.get<MCPOAuthStatusResponse>(`/v1/mcp-servers/${serverId}/oauth/status`);
+  }
+
+  /**
+   * Refresh OAuth token for an MCP server.
+   */
+  async refreshOAuth(serverId: string): Promise<MCPOAuthRefreshResponse> {
+    return this.client.post<MCPOAuthRefreshResponse>(`/v1/mcp-servers/${serverId}/oauth/refresh`);
+  }
+
+  /**
+   * Revoke OAuth credentials for an MCP server.
+   */
+  async revokeOAuth(serverId: string): Promise<{ success: boolean }> {
+    return this.client.post<{ success: boolean }>(`/v1/mcp-servers/${serverId}/oauth/revoke`);
   }
 
   /**

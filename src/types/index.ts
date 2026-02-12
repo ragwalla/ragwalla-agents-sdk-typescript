@@ -355,6 +355,21 @@ export type UpdateAssistantRequest = UpdateAssistantParams | AssistantResourceUp
 export type MCPTransportType = 'stdio' | 'http' | 'websocket';
 export type MCPAuthType = 'none' | 'bearer' | 'api_key' | 'oauth2';
 
+export interface MCPOAuthConfig {
+  flow?: 'authorization_code' | 'client_credentials' | 'mcp_native';
+  authUrl?: string;
+  tokenUrl?: string;
+  clientId?: string;
+  scopes?: string[];
+  audience?: string;
+  resource?: string;
+  redirectUri?: string;
+  extraAuthParams?: Record<string, string>;
+  extraTokenParams?: Record<string, string>;
+  provider?: string;
+  supportsNative?: boolean;
+}
+
 export interface MCPServer {
   id: string;
   name: string;
@@ -365,6 +380,7 @@ export interface MCPServer {
   protocol_version: string;
   auth_type: MCPAuthType;
   status: string;
+  auth_status?: 'pending' | 'connected' | 'error';
   supports_sse?: boolean;
   capabilities?: Record<string, any>;
   created_at: number;
@@ -379,7 +395,7 @@ export interface CreateMCPServerRequest {
   transport_type: MCPTransportType;
   protocol_version?: string;
   auth_type?: MCPAuthType;
-  auth_config?: Record<string, string>;
+  auth_config?: Record<string, any>;
   supports_sse?: boolean;
   /** Required for org-level API keys. Project-scoped keys resolve this automatically. */
   project_id?: string;
@@ -393,7 +409,7 @@ export interface UpdateMCPServerRequest {
   transport_type?: MCPTransportType;
   protocol_version?: string;
   auth_type?: MCPAuthType;
-  auth_config?: Record<string, string>;
+  auth_config?: Record<string, any>;
   supports_sse?: boolean;
   /** Optional: required when using org-level API keys. */
   project_id?: string;
@@ -405,7 +421,7 @@ export interface TestMCPServerRequest {
   transport_type: MCPTransportType;
   protocol_version?: string;
   auth_type?: MCPAuthType;
-  auth_config?: Record<string, string>;
+  auth_config?: Record<string, any>;
   supports_sse?: boolean;
   /** Optional: required when using org-level API keys. */
   project_id?: string;
@@ -452,6 +468,22 @@ export interface MCPAgentAccess {
   agent_description?: string;
   granted_by: string;
   granted_at: number;
+}
+
+export interface MCPOAuthStartResponse {
+  auth_url: string;
+  state: string;
+  expires_at: number;
+}
+
+export interface MCPOAuthStatusResponse {
+  auth_status: 'pending' | 'connected' | 'error';
+  access_token_expires_at?: number | null;
+}
+
+export interface MCPOAuthRefreshResponse {
+  success: boolean;
+  access_token_expires_at?: number | null;
 }
 
 export interface GrantAgentAccessRequest {
