@@ -395,6 +395,8 @@ export interface UpdateMCPServerRequest {
   auth_type?: MCPAuthType;
   auth_config?: Record<string, string>;
   supports_sse?: boolean;
+  /** Optional: required when using org-level API keys. */
+  project_id?: string;
 }
 
 export interface TestMCPServerRequest {
@@ -405,6 +407,8 @@ export interface TestMCPServerRequest {
   auth_type?: MCPAuthType;
   auth_config?: Record<string, string>;
   supports_sse?: boolean;
+  /** Optional: required when using org-level API keys. */
+  project_id?: string;
 }
 
 export interface MCPDiscoveredTool {
@@ -453,6 +457,8 @@ export interface MCPAgentAccess {
 export interface GrantAgentAccessRequest {
   agent_id: string;
   enabled?: boolean;
+  /** Optional: required when using org-level API keys. */
+  project_id?: string;
 }
 
 export interface ChatMessage {
