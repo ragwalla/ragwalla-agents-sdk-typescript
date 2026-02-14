@@ -615,7 +615,6 @@ export interface Channel {
   channel_type: ChannelType;
   enabled: boolean;
   session_scope?: string;
-  webhook_url?: string;
   webhook_status?: WebhookStatus;
   webhook_error?: string;
   webhook_registered_at?: number;
@@ -634,7 +633,6 @@ export interface CreateChannelResponse {
   id: string;
   agent_id: string;
   channel_type: ChannelType;
-  webhook_url?: string;
   webhook_status: WebhookStatus;
   webhook_error?: string;
   setup_instructions?: string;
@@ -646,12 +644,10 @@ export interface ChannelStatus {
   agent_id: string;
   channel_type: ChannelType;
   enabled: boolean;
-  webhook_url?: string;
   webhook_status?: WebhookStatus;
   webhook_error?: string;
   webhook_registered_at?: number;
   live_status?: {
-    url?: string;
     pending_update_count?: number;
     last_error_message?: string;
     last_error_date?: number;
@@ -661,7 +657,6 @@ export interface ChannelStatus {
 export interface WebhookRetryResponse {
   success: boolean;
   webhook_status: WebhookStatus;
-  webhook_url?: string;
   webhook_error?: string;
 }
 

@@ -206,4 +206,20 @@ export class AgentsResource {
       `/v1/agents/${agentId}/children/teardown-all`
     );
   }
+
+  /**
+   * Refresh agent tool definitions by syncing MCP tools from their servers
+   * and reloading all tools from the database
+   */
+  async refreshTools(agentId: string): Promise<{
+    message: string;
+    refreshed: number;
+    mcp_synced: number;
+    mcp_updated: number;
+    cacheCleared: boolean;
+    tools: Array<{ type: string; name: string; description?: string }>;
+    sync_errors?: string[];
+  }> {
+    return this.client.post(`/v1/agents/${agentId}/tools/refresh`);
+  }
 }
