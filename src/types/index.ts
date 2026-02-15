@@ -44,6 +44,7 @@ export interface Agent {
     maxTokens?: number;
   };
   memoryExtractionEnabled?: boolean | null;
+  memoryEmbeddingModel?: string | null;
   agentMetadata?: {
     agentId: string;
     agentType: string;
@@ -53,6 +54,7 @@ export interface Agent {
     maxConcurrentDelegations?: number;
     delegationTimeoutSeconds?: number;
     memoryExtractionEnabled?: boolean | null;
+    memoryEmbeddingModel?: string | null;
     createdAt: number;
     updatedAt: number;
   };
@@ -75,6 +77,7 @@ export interface CreateAgentRequest {
   executionMode?: 'assistant' | 'execution-only';
   subagentLifecycle?: SubagentLifecycleConfig;
   memoryExtractionEnabled?: boolean;
+  memoryEmbeddingModel?: string;
 }
 
 export interface UpdateAgentRequest {
@@ -94,6 +97,7 @@ export interface UpdateAgentRequest {
   maxDelegationDepth?: number;
   subagentLifecycle?: SubagentLifecycleConfig;
   memoryExtractionEnabled?: boolean;
+  memoryEmbeddingModel?: string;
 }
 
 export type AgentTool = Tool;
