@@ -148,6 +148,20 @@ export class AgentsResource {
     return this.unwrapToolResponse(response);
   }
 
+  /**
+   * Bulk-enable system skills for an agent in a single request.
+   * Returns the list of newly enabled skill IDs and how many were skipped (already enabled).
+   */
+  async enableSystemSkillsBulk(agentId: string, skillIds: string[]): Promise<{
+    object: 'bulk_enable_result';
+    agentId: string;
+    enabled: string[];
+    skipped: number;
+    total: number;
+  }> {
+    return this.client.post(`/v1/agents/${agentId}/tools/bulk-enable-system`, { toolIds: skillIds });
+  }
+
   /** @deprecated Use enableSystemSkill() instead */
   async enableSystemTool(agentId: string, toolId: string): Promise<Tool> {
     return this.enableSystemSkill(agentId, toolId);

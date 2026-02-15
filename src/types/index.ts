@@ -710,6 +710,74 @@ export interface UpdateProjectRequest {
   description?: string;
 }
 
+// Memory types
+
+export type MemoryType = 'observation' | 'fact' | 'preference' | 'event' | 'summary' | 'tool_note';
+
+export interface Memory {
+  id: string;
+  object: 'memory';
+  agent_id: string;
+  session_id: string | null;
+  content: string;
+  memory_type: MemoryType;
+  importance: number;
+  tags: string[];
+  vector_id: string | null;
+  created_at: number;
+  accessed_at: number | null;
+  access_count: number;
+}
+
+export interface MemorySearchResult extends Memory {
+  score: number;
+}
+
+export interface CreateMemoryRequest {
+  content: string;
+  memory_type?: MemoryType;
+  importance?: number;
+  tags?: string[];
+  session_id?: string;
+}
+
+export interface BatchCreateMemoryRequest {
+  memories: CreateMemoryRequest[];
+}
+
+export interface SearchMemoriesRequest {
+  query: string;
+  top_k?: number;
+  memory_type?: MemoryType;
+  min_score?: number;
+}
+
+export interface ListMemoriesParams {
+  limit?: number;
+  offset?: number;
+  memory_type?: MemoryType;
+}
+
+export interface ListMemoriesResponse {
+  object: 'list';
+  data: Memory[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+}
+
+export interface SearchMemoriesResponse {
+  object: 'list';
+  data: MemorySearchResult[];
+}
+
+export interface BatchCreateMemoryResponse {
+  object: 'list';
+  data: Memory[];
+  total: number;
+}
+
 // Workspace File types
 
 export type WorkspaceFileType = 'soul' | 'identity' | 'user' | 'tools' | 'bootstrap' | 'boot' | 'heartbeat' | 'custom';
