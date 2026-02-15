@@ -43,6 +43,7 @@ export interface Agent {
     topP?: number;
     maxTokens?: number;
   };
+  memoryExtractionEnabled?: boolean | null;
   agentMetadata?: {
     agentId: string;
     agentType: string;
@@ -51,6 +52,7 @@ export interface Agent {
     maxDelegationDepth: number;
     maxConcurrentDelegations?: number;
     delegationTimeoutSeconds?: number;
+    memoryExtractionEnabled?: boolean | null;
     createdAt: number;
     updatedAt: number;
   };
@@ -72,6 +74,7 @@ export interface CreateAgentRequest {
   agentType?: 'orchestrator' | 'primary' | 'subagent';
   executionMode?: 'assistant' | 'execution-only';
   subagentLifecycle?: SubagentLifecycleConfig;
+  memoryExtractionEnabled?: boolean;
 }
 
 export interface UpdateAgentRequest {
@@ -90,6 +93,7 @@ export interface UpdateAgentRequest {
   canBeDelegatedTo?: boolean;
   maxDelegationDepth?: number;
   subagentLifecycle?: SubagentLifecycleConfig;
+  memoryExtractionEnabled?: boolean;
 }
 
 export type AgentTool = Tool;
