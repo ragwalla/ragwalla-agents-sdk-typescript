@@ -11,6 +11,7 @@ import { OrganizationsResource } from './resources/organizations';
 import { ModelsResource } from './resources/models';
 import { WorkspaceFilesResource } from './resources/workspace-files';
 import { MemoriesResource } from './resources/memories';
+import { FeatureFlagsResource } from './resources/feature-flags';
 import { RagwallaConfig } from './types';
 
 export class Ragwalla {
@@ -25,6 +26,7 @@ export class Ragwalla {
   public readonly models: ModelsResource;
   public readonly workspaceFiles: WorkspaceFilesResource;
   public readonly memories: MemoriesResource;
+  public readonly featureFlags: FeatureFlagsResource;
 
   private httpClient: HTTPClient;
   private config: RagwallaConfig;
@@ -47,6 +49,7 @@ export class Ragwalla {
     this.models = new ModelsResource(this.httpClient);
     this.workspaceFiles = new WorkspaceFilesResource(this.httpClient);
     this.memories = new MemoriesResource(this.httpClient);
+    this.featureFlags = new FeatureFlagsResource(this.httpClient);
   }
 
   /**
@@ -87,6 +90,7 @@ export * from './resources/organizations';
 export * from './resources/models';
 export * from './resources/workspace-files';
 export * from './resources/memories';
+export * from './resources/feature-flags';
 
 // Default export
 export default Ragwalla;

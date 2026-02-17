@@ -819,3 +819,22 @@ export interface WorkspacePreview {
   hasWorkspace: boolean;
   composedPrompt: string | null;
 }
+
+// --- Feature Flags ---
+
+export interface ResolvedFlag {
+  flag_name: string;
+  enabled: boolean;
+  source: 'global' | 'organization' | 'project' | 'agent' | 'default';
+}
+
+export interface ResolveFlagsRequest {
+  flags: string[];
+  organization_id: string;
+  project_id?: string;
+  agent_id?: string;
+}
+
+export interface ResolveFlagsResponse {
+  data: ResolvedFlag[];
+}
