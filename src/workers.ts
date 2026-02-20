@@ -8,6 +8,8 @@ export * from './resources/quota';
 export * from './resources/models';
 export * from './resources/workspace-files';
 export * from './resources/memories';
+export * from './resources/endpoints';
+export * from './resources/namespace-flags';
 export { HTTPClient, RagwallaAPIError } from './client/http-client';
 export { RagwallaWebSocket } from './client/websocket-client';
 
@@ -22,6 +24,8 @@ import { QuotaResource } from './resources/quota';
 import { ModelsResource } from './resources/models';
 import { WorkspaceFilesResource } from './resources/workspace-files';
 import { MemoriesResource } from './resources/memories';
+import { EndpointsResource } from './resources/endpoints';
+import { NamespaceFlagsResource } from './resources/namespace-flags';
 
 /**
  * Ragwalla SDK optimized for Cloudflare Workers
@@ -44,6 +48,8 @@ export class Ragwalla {
   public readonly models: ModelsResource;
   public readonly workspaceFiles: WorkspaceFilesResource;
   public readonly memories: MemoriesResource;
+  public readonly endpoints: EndpointsResource;
+  public readonly namespaceFlags: NamespaceFlagsResource;
 
   private config: RagwallaConfig;
 
@@ -62,6 +68,8 @@ export class Ragwalla {
     this.models = new ModelsResource(client);
     this.workspaceFiles = new WorkspaceFilesResource(client);
     this.memories = new MemoriesResource(client);
+    this.endpoints = new EndpointsResource(client);
+    this.namespaceFlags = new NamespaceFlagsResource(client);
   }
 
   /**

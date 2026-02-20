@@ -12,6 +12,8 @@ import { ModelsResource } from './resources/models';
 import { WorkspaceFilesResource } from './resources/workspace-files';
 import { MemoriesResource } from './resources/memories';
 import { FeatureFlagsResource } from './resources/feature-flags';
+import { EndpointsResource } from './resources/endpoints';
+import { NamespaceFlagsResource } from './resources/namespace-flags';
 import { RagwallaConfig } from './types';
 
 export class Ragwalla {
@@ -27,6 +29,8 @@ export class Ragwalla {
   public readonly workspaceFiles: WorkspaceFilesResource;
   public readonly memories: MemoriesResource;
   public readonly featureFlags: FeatureFlagsResource;
+  public readonly endpoints: EndpointsResource;
+  public readonly namespaceFlags: NamespaceFlagsResource;
 
   private httpClient: HTTPClient;
   private config: RagwallaConfig;
@@ -50,6 +54,8 @@ export class Ragwalla {
     this.workspaceFiles = new WorkspaceFilesResource(this.httpClient);
     this.memories = new MemoriesResource(this.httpClient);
     this.featureFlags = new FeatureFlagsResource(this.httpClient);
+    this.endpoints = new EndpointsResource(this.httpClient);
+    this.namespaceFlags = new NamespaceFlagsResource(this.httpClient);
   }
 
   /**
@@ -91,6 +97,8 @@ export * from './resources/models';
 export * from './resources/workspace-files';
 export * from './resources/memories';
 export * from './resources/feature-flags';
+export * from './resources/endpoints';
+export * from './resources/namespace-flags';
 
 // Default export
 export default Ragwalla;

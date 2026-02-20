@@ -621,6 +621,7 @@ export interface Channel {
   id: string;
   agent_id: string;
   channel_type: ChannelType;
+  config?: Record<string, unknown>;
   enabled: boolean;
   session_scope?: string;
   webhook_status?: WebhookStatus;
@@ -820,12 +821,39 @@ export interface WorkspacePreview {
   composedPrompt: string | null;
 }
 
+// --- Endpoint Provisioning (Platform Keys) ---
+
+export interface Endpoint {
+  id: string;
+  object: 'endpoint';
+  status: 'provisioning' | 'active' | 'error';
+  baseURL: string;
+  error?: string;
+  createdAt: number;
+}
+
+export interface CreateEndpointRequest {
+  name: string;
+  customDomain?: string;
+}
+
+export interface EndpointList {
+  object: 'list';
+  data: Endpoint[];
+}
+
+export interface EndpointDeleted {
+  id: string;
+  object: 'endpoint';
+  deleted: boolean;
+}
+
 // --- Feature Flags ---
 
 export interface ResolvedFlag {
   flag_name: string;
   enabled: boolean;
-  source: 'global' | 'organization' | 'project' | 'agent' | 'default';
+  source: 'endpoint' | 'organization' | 'project' | 'agent' | 'namespace' | 'default';
 }
 
 export interface ResolveFlagsRequest {
@@ -837,4 +865,25 @@ export interface ResolveFlagsRequest {
 
 export interface ResolveFlagsResponse {
   data: ResolvedFlag[];
+}
+
+// --- Namespace Flags (Platform Key holders only) ---
+
+export interface NamespaceFlag {
+  flag_name: string;
+  enabled: boolean;
+  updated_at: number;
+}
+
+export interface SetNamespaceFlagRequest {
+  flag_name: string;
+  enabled: boolean;
+}
+
+export interface DeleteNamespaceFlagRequest {
+  flag_name: string;
+}
+
+export interface NamespaceFlagList {
+  data: NamespaceFlag[];
 }

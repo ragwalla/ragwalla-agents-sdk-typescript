@@ -168,7 +168,7 @@ export class HTTPClient {
     }
   }
 
-  async delete<T>(path: string): Promise<T> {
+  async delete<T>(path: string, data?: any): Promise<T> {
     const url = new URL(path, this.baseURL);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -177,6 +177,7 @@ export class HTTPClient {
       const response = await fetch(url.toString(), {
         method: 'DELETE',
         headers: this.getHeaders(),
+        body: data ? JSON.stringify(data) : undefined,
         signal: controller.signal
       });
 
