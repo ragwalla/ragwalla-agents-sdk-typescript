@@ -127,7 +127,7 @@ export interface ModelsListResponse {
   total_count: number;
 }
 
-export type ToolType = 'function' | 'assistant' | 'api' | 'knowledge_base' | 'mcp' | 'system';
+export type ToolType = 'function' | 'assistant' | 'api' | 'knowledge_base' | 'knowledge_graph' | 'mcp' | 'system';
 
 export interface BaseTool {
   id: string;
@@ -179,6 +179,14 @@ export interface KnowledgeBaseTool extends BaseTool {
   };
 }
 
+export interface KnowledgeGraphToolDef extends BaseTool {
+  type: 'knowledge_graph';
+  knowledgeBaseId: string;
+  searchParameters?: {
+    maxHops?: number;
+  };
+}
+
 export interface MCPTool extends BaseTool {
   type: 'mcp';
   serverId: string;
@@ -196,7 +204,7 @@ export interface SystemTool extends BaseTool {
   parameters?: Record<string, any>;
 }
 
-export type Tool = FunctionTool | AssistantTool | ApiTool | KnowledgeBaseTool | MCPTool | SystemTool;
+export type Tool = FunctionTool | AssistantTool | ApiTool | KnowledgeBaseTool | KnowledgeGraphToolDef | MCPTool | SystemTool;
 
 /** An agent skill = system-provided or user-created capability (excludes MCP tools) */
 export type AgentSkill = FunctionTool | SystemTool;
@@ -719,6 +727,73 @@ export interface UpdateProjectRequest {
   description?: string;
 }
 
+// Organization webhook types
+
+export interface OrganizationWebhook {
+  id: string;
+  organizationId: string;
+  name: string;
+  endpointUrl: string;
+  secretPrefix: string | null;
+  enabled: boolean;
+  eventSubscriptions: string[];
+  retryMaxAttempts: number;
+  retryBackoffMs: number;
+  createdAt: number;
+  updatedAt: number;
+  createdBy: string | null;
+}
+
+export interface CreateOrganizationWebhookRequest {
+  name: string;
+  endpoint_url: string;
+  event_subscriptions: string[];
+  secret?: string;
+  auto_generate_secret?: boolean;
+  retry_max_attempts?: number;
+  retry_backoff_ms?: number;
+}
+
+export interface UpdateOrganizationWebhookRequest {
+  name?: string;
+  endpoint_url?: string;
+  enabled?: boolean;
+  event_subscriptions?: string[];
+  secret?: string;
+  auto_generate_secret?: boolean;
+  retry_max_attempts?: number;
+  retry_backoff_ms?: number;
+}
+
+export interface OrganizationWebhookCreateResponse extends OrganizationWebhook {
+  secret?: string;
+}
+
+export interface OrganizationWebhookListResponse {
+  webhooks: OrganizationWebhook[];
+}
+
+export interface WebhookDelivery {
+  id: string;
+  webhookId: string;
+  eventType: string;
+  payload: string;
+  status: 'pending' | 'delivered' | 'failed';
+  attempts: number;
+  maxAttempts: number;
+  nextRetryAt: number | null;
+  lastAttemptAt: number | null;
+  responseStatus: number | null;
+  responseBody: string | null;
+  error: string | null;
+  createdAt: number;
+  completedAt: number | null;
+}
+
+export interface OrganizationWebhookDeliveriesResponse {
+  deliveries: WebhookDelivery[];
+}
+
 // Memory types
 
 export type MemoryType = 'observation' | 'fact' | 'preference' | 'event' | 'summary' | 'tool_note';
@@ -886,4 +961,101 @@ export interface DeleteNamespaceFlagRequest {
 
 export interface NamespaceFlagList {
   data: NamespaceFlag[];
+}
+
+// --- Knowledge Graphs ---
+
+export interface KnowledgeGraph {
+  id: string;
+  object: 'knowledge_graph';
+  name: string;
+  description?: string;
+  project_id: string;
+  embedding_model: string;
+  extraction_model?: string;
+  entity_count: number;
+  relationship_count: number;
+  file_count: number;
+  status: string;
+  created_at: number;
+}
+
+export interface CreateKnowledgeGraphRequest {
+  name: string;
+  description?: string;
+  project_id?: string;
+  embedding_settings: {
+    model: string;
+    dimensions?: number;
+    metric?: 'cosine' | 'euclidean' | 'dot-product';
+  };
+  extraction_model?: string;
+}
+
+export interface UpdateKnowledgeGraphRequest {
+  name?: string;
+  description?: string;
+}
+
+export interface KgFileAssociation {
+  knowledge_base_id: string;
+  file_id: string;
+  status: 'pending' | 'extracting' | 'completed' | 'failed';
+  entity_count: number;
+  relationship_count: number;
+  last_error?: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface KgEntity {
+  entity_id: string;
+  name: string;
+  entity_type: string;
+  properties: Record<string, unknown>;
+  confidence: number;
+  source_chunk_ids: string[];
+  status: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface KgRelationship {
+  relationship_id: string;
+  from_entity_id: string;
+  to_entity_id: string;
+  relationship_type: string;
+  properties: Record<string, unknown>;
+  confidence: number;
+  source_chunk_id?: string;
+  source_file_id?: string;
+  created_at: number;
+}
+
+export interface KgSearchRequest {
+  query: string;
+  top_k?: number;
+  entity_type?: string;
+}
+
+export interface KgSearchResponse {
+  data: KgEntity[];
+}
+
+export interface KgQueryRequest {
+  query: string;
+  include_source_chunks?: boolean;
+  max_hops?: number;
+}
+
+export interface KgQueryResponse {
+  entities: KgEntity[];
+  neighbors?: KgEntity[];
+  relationships: KgRelationship[];
+  source_chunks?: Array<{
+    chunk_id: string;
+    file_id: string;
+    content: string;
+    score: number;
+  }>;
 }

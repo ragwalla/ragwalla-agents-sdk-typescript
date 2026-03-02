@@ -236,4 +236,33 @@ export class AgentsResource {
   }> {
     return this.client.post(`/v1/agents/${agentId}/tools/refresh`);
   }
+
+  /**
+   * Attach a knowledge graph to an agent
+   */
+  async attachKnowledgeGraph(
+    agentId: string,
+    request: { knowledge_base_id: string }
+  ): Promise<{ agent_id: string; knowledge_base_id: string; created_at: number }> {
+    return this.client.post(`/v1/agents/${agentId}/knowledge_graphs`, request);
+  }
+
+  /**
+   * List knowledge graphs attached to an agent
+   */
+  async listKnowledgeGraphs(
+    agentId: string
+  ): Promise<{ object: 'list'; data: any[] }> {
+    return this.client.get(`/v1/agents/${agentId}/knowledge_graphs`);
+  }
+
+  /**
+   * Detach a knowledge graph from an agent
+   */
+  async detachKnowledgeGraph(
+    agentId: string,
+    kgId: string
+  ): Promise<{ agent_id: string; knowledge_base_id: string; deleted: boolean }> {
+    return this.client.delete(`/v1/agents/${agentId}/knowledge_graphs/${kgId}`);
+  }
 }

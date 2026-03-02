@@ -6,6 +6,12 @@ import {
   ProjectList,
   CreateProjectRequest,
   UpdateProjectRequest,
+  OrganizationWebhook,
+  CreateOrganizationWebhookRequest,
+  UpdateOrganizationWebhookRequest,
+  OrganizationWebhookCreateResponse,
+  OrganizationWebhookListResponse,
+  OrganizationWebhookDeliveriesResponse,
 } from '../types';
 
 class ProjectsResource {
@@ -50,11 +56,85 @@ class ProjectsResource {
   }
 }
 
+class WebhooksResource {
+  constructor(private client: HTTPClient) {}
+
+  /**
+   * Create an outbound organization webhook.
+   */
+  async create(
+    orgId: string,
+    request: CreateOrganizationWebhookRequest,
+  ): Promise<OrganizationWebhookCreateResponse> {
+    return this.client.post<OrganizationWebhookCreateResponse>(
+      `/v1/organizations/${orgId}/webhooks`,
+      request,
+    );
+  }
+
+  /**
+   * List outbound organization webhooks.
+   */
+  async list(orgId: string): Promise<OrganizationWebhookListResponse> {
+    return this.client.get<OrganizationWebhookListResponse>(
+      `/v1/organizations/${orgId}/webhooks`,
+    );
+  }
+
+  /**
+   * Retrieve one outbound webhook by ID.
+   */
+  async retrieve(orgId: string, webhookId: string): Promise<OrganizationWebhook> {
+    return this.client.get<OrganizationWebhook>(
+      `/v1/organizations/${orgId}/webhooks/${webhookId}`,
+    );
+  }
+
+  /**
+   * Update an outbound organization webhook.
+   */
+  async update(
+    orgId: string,
+    webhookId: string,
+    request: UpdateOrganizationWebhookRequest,
+  ): Promise<OrganizationWebhook> {
+    return this.client.put<OrganizationWebhook>(
+      `/v1/organizations/${orgId}/webhooks/${webhookId}`,
+      request,
+    );
+  }
+
+  /**
+   * Delete an outbound organization webhook.
+   */
+  async delete(orgId: string, webhookId: string): Promise<{ ok: boolean }> {
+    return this.client.delete<{ ok: boolean }>(
+      `/v1/organizations/${orgId}/webhooks/${webhookId}`,
+    );
+  }
+
+  /**
+   * List delivery attempts for an outbound organization webhook.
+   */
+  async listDeliveries(
+    orgId: string,
+    webhookId: string,
+    params?: { limit?: number; offset?: number },
+  ): Promise<OrganizationWebhookDeliveriesResponse> {
+    return this.client.get<OrganizationWebhookDeliveriesResponse>(
+      `/v1/organizations/${orgId}/webhooks/${webhookId}/deliveries`,
+      params,
+    );
+  }
+}
+
 export class OrganizationsResource {
   public readonly projects: ProjectsResource;
+  public readonly webhooks: WebhooksResource;
 
   constructor(private client: HTTPClient) {
     this.projects = new ProjectsResource(client);
+    this.webhooks = new WebhooksResource(client);
   }
 
   /**

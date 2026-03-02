@@ -55,7 +55,14 @@ export class HTTPClient {
 
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
+      const rawText = await response.text().catch(() => '');
+      let body: any = {};
+      try {
+        body = JSON.parse(rawText);
+      } catch {
+        // Non-JSON response (e.g. Cloudflare HTML error page)
+        console.error(`[RagwallaHTTP] ${response.status} non-JSON response from ${response.url}: ${rawText.slice(0, 500)}`);
+      }
       // ragwalla-hono-worker wraps errors in { error: { message, type, code } }
       const error = body.error || body;
       throw new RagwallaAPIError(
