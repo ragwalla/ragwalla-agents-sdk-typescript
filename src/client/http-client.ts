@@ -63,14 +63,18 @@ export class HTTPClient {
         // Non-JSON response (e.g. Cloudflare HTML error page)
         console.error(`[RagwallaHTTP] ${response.status} non-JSON response from ${response.url}: ${rawText.slice(0, 500)}`);
       }
-      // ragwalla-hono-worker wraps errors in { error: { message, type, code } }
-      const error = body.error || body;
+      // ragwalla-hono-worker returns either { error: "string" } or { error: { message, type, code } }
+      const errorObj = body.error || body;
+      const message = typeof errorObj === 'string' ? errorObj : (errorObj.message || `HTTP ${response.status}`);
+      const type = typeof errorObj === 'string' ? undefined : errorObj.type;
+      const code = typeof errorObj === 'string' ? undefined : errorObj.code;
+      const param = typeof errorObj === 'string' ? undefined : errorObj.param;
       throw new RagwallaAPIError(
-        error.message || `HTTP ${response.status}`,
+        message,
         response.status,
-        error.type,
-        error.code,
-        error.param
+        type,
+        code,
+        param
       );
     }
 
@@ -207,13 +211,18 @@ export class HTTPClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
+      const body: any = await response.json().catch(() => ({}));
+      const errorObj = body.error || body;
+      const msg = typeof errorObj === 'string' ? errorObj : (errorObj.message || `HTTP ${response.status}`);
+      const errType = typeof errorObj === 'string' ? undefined : errorObj.type;
+      const errCode = typeof errorObj === 'string' ? undefined : errorObj.code;
+      const errParam = typeof errorObj === 'string' ? undefined : errorObj.param;
       throw new RagwallaAPIError(
-        error.message || `HTTP ${response.status}`,
+        msg,
         response.status,
-        error.type,
-        error.code,
-        error.param
+        errType,
+        errCode,
+        errParam
       );
     }
 
