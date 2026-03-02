@@ -3,12 +3,14 @@ import { RagwallaConfig, RagwallaError } from '../types';
 export class HTTPClient {
   private apiKey: string;
   private baseURL!: string; // Assigned in validateAndSetBaseURL
+  private projectId?: string;
   private timeout: number;
   private debug: boolean;
 
   constructor(config: RagwallaConfig) {
     this.apiKey = config.apiKey;
     this.validateAndSetBaseURL(config.baseURL);
+    this.projectId = config.projectId;
     this.timeout = config.timeout || 30000;
     this.debug = config.debug || false;
   }
@@ -46,11 +48,15 @@ export class HTTPClient {
   }
 
   private getHeaders(): Record<string, string> {
-    return {
+    const headers: Record<string, string> = {
       'Authorization': `Bearer ${this.apiKey}`,
       'Content-Type': 'application/json',
       'User-Agent': 'ragwalla-agents-sdk-typescript/1.0.0'
     };
+    if (this.projectId) {
+      headers['X-Project-ID'] = this.projectId;
+    }
+    return headers;
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
