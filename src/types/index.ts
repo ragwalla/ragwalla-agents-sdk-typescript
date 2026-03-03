@@ -1060,3 +1060,27 @@ export interface KgQueryResponse {
     score: number;
   }>;
 }
+
+export interface KgInfrastructureStatus {
+  object: 'knowledge_graph_status';
+  knowledge_base_id: string;
+  name: string;
+  project_id: string;
+  organization_id: string;
+  embedding_model: string;
+  infrastructure: {
+    provisioning_ready: boolean;
+    graph_id: string;
+    vector_binding_name: string;
+    bindings: Record<string, boolean>;
+    graph_registry: {
+      present: boolean;
+      created_at: number | null;
+      updated_at: number | null;
+    };
+  };
+  metrics: {
+    entities_active: number;
+    files_total: number;
+  };
+}

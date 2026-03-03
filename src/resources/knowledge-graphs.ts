@@ -10,6 +10,7 @@ import {
   KgSearchResponse,
   KgQueryRequest,
   KgQueryResponse,
+  KgInfrastructureStatus,
 } from '../types';
 
 export class KnowledgeGraphsResource {
@@ -51,6 +52,13 @@ export class KnowledgeGraphsResource {
    */
   async delete(kgId: string): Promise<{ id: string; deleted: boolean }> {
     return this.client.delete<{ id: string; deleted: boolean }>(`/v1/knowledge_graphs/${kgId}`);
+  }
+
+  /**
+   * Get infrastructure provisioning status for a knowledge graph
+   */
+  async getStatus(kgId: string): Promise<KgInfrastructureStatus> {
+    return this.client.get<KgInfrastructureStatus>(`/v1/knowledge_graphs/${kgId}/status`);
   }
 
   // ── File management ───────────────────────────────────────────────────
