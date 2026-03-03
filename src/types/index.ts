@@ -974,6 +974,7 @@ export interface KnowledgeGraph {
   project_id: string;
   embedding_model: string;
   extraction_model?: string;
+  extraction_schema?: Record<string, unknown> | null;
   entity_count: number;
   relationship_count: number;
   file_count: number;
@@ -991,11 +992,38 @@ export interface CreateKnowledgeGraphRequest {
     metric?: 'cosine' | 'euclidean' | 'dot-product';
   };
   extraction_model?: string;
+  extraction_schema?: Record<string, unknown>;
 }
 
 export interface UpdateKnowledgeGraphRequest {
   name?: string;
   description?: string;
+  extraction_model?: string;
+  extraction_schema?: Record<string, unknown> | null;
+}
+
+export interface SuggestKnowledgeGraphSchemaRequest {
+  file_ids?: string[];
+  model?: string;
+  max_files?: number;
+  max_chunks_per_file?: number;
+  max_chars_per_chunk?: number;
+  allow_fallback_schema?: boolean;
+  allow_partial_sampling?: boolean;
+}
+
+export interface SuggestKnowledgeGraphSchemaResponse {
+  object: 'knowledge_graph.schema_suggestion';
+  knowledge_base_id: string;
+  model: string;
+  sampled_files: number;
+  sampled_chunks: number;
+  source_file_ids: string[];
+  extraction_schema: Record<string, unknown>;
+  summary?: string | null;
+  assumptions?: string[];
+  used_fallback_schema?: boolean;
+  warning?: string | null;
 }
 
 export interface KgFileAssociation {

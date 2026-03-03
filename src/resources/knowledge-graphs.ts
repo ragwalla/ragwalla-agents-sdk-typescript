@@ -3,6 +3,8 @@ import {
   KnowledgeGraph,
   CreateKnowledgeGraphRequest,
   UpdateKnowledgeGraphRequest,
+  SuggestKnowledgeGraphSchemaRequest,
+  SuggestKnowledgeGraphSchemaResponse,
   KgFileAssociation,
   KgEntity,
   KgRelationship,
@@ -45,6 +47,19 @@ export class KnowledgeGraphsResource {
    */
   async update(kgId: string, request: UpdateKnowledgeGraphRequest): Promise<KnowledgeGraph> {
     return this.client.post<KnowledgeGraph>(`/v1/knowledge_graphs/${kgId}`, request);
+  }
+
+  /**
+   * Suggest an extraction schema from sampled knowledge graph data
+   */
+  async suggestSchema(
+    kgId: string,
+    request: SuggestKnowledgeGraphSchemaRequest = {}
+  ): Promise<SuggestKnowledgeGraphSchemaResponse> {
+    return this.client.post<SuggestKnowledgeGraphSchemaResponse>(
+      `/v1/knowledge_graphs/${kgId}/schema/suggest`,
+      request
+    );
   }
 
   /**
