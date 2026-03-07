@@ -911,6 +911,8 @@ export interface Endpoint {
 export interface CreateEndpointRequest {
   name: string;
   customDomain?: string;
+  /** Provision memory infrastructure (queues, KV, MemoryGraphDO) upfront. */
+  enableMemory?: boolean;
 }
 
 export interface EndpointList {
