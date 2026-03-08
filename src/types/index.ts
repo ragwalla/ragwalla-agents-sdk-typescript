@@ -1031,9 +1031,18 @@ export interface SuggestKnowledgeGraphSchemaResponse {
 export interface KgFileAssociation {
   knowledge_base_id: string;
   file_id: string;
+  filename?: string;
+  content_type?: string;
+  bytes?: number;
   status: 'pending' | 'extracting' | 'completed' | 'failed';
   entity_count: number;
   relationship_count: number;
+  chunks_extracted?: number;
+  total_chunks?: number;
+  finalization_status?: 'pending' | 'completed' | 'failed';
+  finalization_error?: string;
+  finalized_at?: number;
+  final_extraction?: Record<string, unknown>;
   last_error?: string;
   created_at: number;
   updated_at: number;

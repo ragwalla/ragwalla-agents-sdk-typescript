@@ -96,10 +96,12 @@ export class KnowledgeGraphsResource {
   }
 
   /**
-   * Get a file's extraction status
+   * Get a file's extraction status and optionally its materialized extraction results
    */
-  async getFile(kgId: string, fileId: string): Promise<KgFileAssociation> {
-    return this.client.get<KgFileAssociation>(`/v1/knowledge_graphs/${kgId}/files/${fileId}`);
+  async getFile(kgId: string, fileId: string, params?: {
+    include_materialized?: boolean;
+  }): Promise<KgFileAssociation> {
+    return this.client.get<KgFileAssociation>(`/v1/knowledge_graphs/${kgId}/files/${fileId}`, params);
   }
 
   /**
@@ -144,6 +146,7 @@ export class KnowledgeGraphsResource {
   async listRelationships(kgId: string, params?: {
     entity_id?: string;
     relationship_type?: string;
+    source_file_id?: string;
     limit?: number;
     offset?: number;
   }): Promise<{ data: KgRelationship[]; total: number; limit: number; offset: number }> {
