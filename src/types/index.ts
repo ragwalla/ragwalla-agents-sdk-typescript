@@ -977,6 +977,7 @@ export interface KnowledgeGraph {
   embedding_model: string;
   extraction_model?: string;
   extraction_schema?: Record<string, unknown> | null;
+  extraction_prompt?: string | null;
   entity_count: number;
   relationship_count: number;
   file_count: number;
@@ -995,6 +996,7 @@ export interface CreateKnowledgeGraphRequest {
   };
   extraction_model?: string;
   extraction_schema?: Record<string, unknown>;
+  extraction_prompt?: string;
 }
 
 export interface UpdateKnowledgeGraphRequest {
@@ -1002,6 +1004,7 @@ export interface UpdateKnowledgeGraphRequest {
   description?: string;
   extraction_model?: string;
   extraction_schema?: Record<string, unknown> | null;
+  extraction_prompt?: string | null;
 }
 
 export interface SuggestKnowledgeGraphSchemaRequest {
