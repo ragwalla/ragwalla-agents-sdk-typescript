@@ -1,5 +1,6 @@
 import { HTTPClient } from '../client/http-client';
 import {
+  CreateOrganizationRequest,
   Organization,
   OrganizationList,
   Project,
@@ -135,6 +136,13 @@ export class OrganizationsResource {
   constructor(private client: HTTPClient) {
     this.projects = new ProjectsResource(client);
     this.webhooks = new WebhooksResource(client);
+  }
+
+  /**
+   * Create a new organization
+   */
+  async create(request: CreateOrganizationRequest): Promise<Organization> {
+    return this.client.post<Organization>('/v1/organizations', request);
   }
 
   /**

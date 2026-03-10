@@ -679,6 +679,14 @@ export interface WebhookRetryResponse {
 }
 
 // Organization types
+export interface CreateOrganizationRequest {
+  name: string;
+  settings?: {
+    payment?: string;
+    credits?: number;
+  };
+}
+
 export interface Organization {
   id: string;
   name: string;
