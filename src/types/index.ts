@@ -46,6 +46,7 @@ export interface Agent {
   };
   memoryExtractionEnabled?: boolean | null;
   memoryEmbeddingModel?: string | null;
+  memoryUserScopingEnabled?: boolean | null;
   agentMetadata?: {
     agentId: string;
     agentType: string;
@@ -56,6 +57,7 @@ export interface Agent {
     delegationTimeoutSeconds?: number;
     memoryExtractionEnabled?: boolean | null;
     memoryEmbeddingModel?: string | null;
+    memoryUserScopingEnabled?: boolean | null;
     createdAt: number;
     updatedAt: number;
   };
@@ -79,6 +81,7 @@ export interface CreateAgentRequest {
   subagentLifecycle?: SubagentLifecycleConfig;
   memoryExtractionEnabled?: boolean;
   memoryEmbeddingModel?: string;
+  memoryUserScopingEnabled?: boolean;
 }
 
 export interface UpdateAgentRequest {
@@ -99,6 +102,7 @@ export interface UpdateAgentRequest {
   subagentLifecycle?: SubagentLifecycleConfig;
   memoryExtractionEnabled?: boolean;
   memoryEmbeddingModel?: string;
+  memoryUserScopingEnabled?: boolean;
 }
 
 export type AgentTool = Tool;
@@ -832,10 +836,14 @@ export interface CreateMemoryRequest {
   importance?: number;
   tags?: string[];
   session_id?: string;
+  /** Target a specific user's memory graph (requires memory_user_scoping_enabled on the agent). */
+  user_id?: string;
 }
 
 export interface BatchCreateMemoryRequest {
   memories: CreateMemoryRequest[];
+  /** Target a specific user's memory graph (requires memory_user_scoping_enabled on the agent). */
+  user_id?: string;
 }
 
 export interface SearchMemoriesRequest {
@@ -843,12 +851,26 @@ export interface SearchMemoriesRequest {
   top_k?: number;
   memory_type?: MemoryType;
   min_score?: number;
+  /** Target a specific user's memory graph (requires memory_user_scoping_enabled on the agent). */
+  user_id?: string;
 }
 
 export interface ListMemoriesParams {
   limit?: number;
   offset?: number;
   memory_type?: MemoryType;
+  /** Target a specific user's memory graph (requires memory_user_scoping_enabled on the agent). */
+  user_id?: string;
+}
+
+export interface RetrieveMemoryParams {
+  /** Target a specific user's memory graph (requires memory_user_scoping_enabled on the agent). */
+  user_id?: string;
+}
+
+export interface DeleteMemoryParams {
+  /** Target a specific user's memory graph (requires memory_user_scoping_enabled on the agent). */
+  user_id?: string;
 }
 
 export interface ListMemoriesResponse {

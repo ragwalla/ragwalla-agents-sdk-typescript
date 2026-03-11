@@ -8,6 +8,8 @@ import {
   ListMemoriesResponse,
   SearchMemoriesResponse,
   BatchCreateMemoryResponse,
+  RetrieveMemoryParams,
+  DeleteMemoryParams,
 } from '../types';
 
 export class MemoriesResource {
@@ -15,6 +17,7 @@ export class MemoriesResource {
 
   /**
    * List memories for an agent with optional filtering and pagination.
+   * Pass `user_id` to target a specific user's memory graph.
    */
   async list(agentId: string, params?: ListMemoriesParams): Promise<ListMemoriesResponse> {
     return this.client.get<ListMemoriesResponse>(`/v1/agents/${agentId}/memories`, params);
@@ -22,13 +25,15 @@ export class MemoriesResource {
 
   /**
    * Retrieve a single memory by ID.
+   * Pass `user_id` in params to target a specific user's memory graph.
    */
-  async retrieve(agentId: string, memoryId: string): Promise<Memory> {
-    return this.client.get<Memory>(`/v1/agents/${agentId}/memories/${memoryId}`);
+  async retrieve(agentId: string, memoryId: string, params?: RetrieveMemoryParams): Promise<Memory> {
+    return this.client.get<Memory>(`/v1/agents/${agentId}/memories/${memoryId}`, params);
   }
 
   /**
    * Create a single memory for an agent.
+   * Include `user_id` in the request to target a specific user's memory graph.
    */
   async create(agentId: string, request: CreateMemoryRequest): Promise<Memory> {
     return this.client.post<Memory>(`/v1/agents/${agentId}/memories`, request);
@@ -36,6 +41,7 @@ export class MemoriesResource {
 
   /**
    * Create multiple memories in a single batch (max 20).
+   * Include `user_id` in the request to target a specific user's memory graph.
    */
   async createBatch(agentId: string, request: BatchCreateMemoryRequest): Promise<BatchCreateMemoryResponse> {
     return this.client.post<BatchCreateMemoryResponse>(`/v1/agents/${agentId}/memories`, request);
@@ -43,13 +49,16 @@ export class MemoriesResource {
 
   /**
    * Delete a memory by ID.
+   * Pass `user_id` in params to target a specific user's memory graph.
    */
-  async delete(agentId: string, memoryId: string): Promise<{ deleted: boolean; id: string }> {
-    return this.client.delete<{ deleted: boolean; id: string }>(`/v1/agents/${agentId}/memories/${memoryId}`);
+  async delete(agentId: string, memoryId: string, params?: DeleteMemoryParams): Promise<{ deleted: boolean; id: string }> {
+    const queryString = params?.user_id ? `?user_id=${encodeURIComponent(params.user_id)}` : '';
+    return this.client.delete<{ deleted: boolean; id: string }>(`/v1/agents/${agentId}/memories/${memoryId}${queryString}`);
   }
 
   /**
    * Semantic search over an agent's memories.
+   * Include `user_id` in the request to target a specific user's memory graph.
    */
   async search(agentId: string, request: SearchMemoriesRequest): Promise<SearchMemoriesResponse> {
     return this.client.post<SearchMemoriesResponse>(`/v1/agents/${agentId}/memories/search`, request);
