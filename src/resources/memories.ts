@@ -18,6 +18,7 @@ export class MemoriesResource {
   /**
    * List memories for an agent with optional filtering and pagination.
    * Pass `user_id` to target a specific user's memory graph.
+   * Pass `memory_store_id` to target a specific memory store.
    */
   async list(agentId: string, params?: ListMemoriesParams): Promise<ListMemoriesResponse> {
     return this.client.get<ListMemoriesResponse>(`/v1/agents/${agentId}/memories`, params);
@@ -50,9 +51,13 @@ export class MemoriesResource {
   /**
    * Delete a memory by ID.
    * Pass `user_id` in params to target a specific user's memory graph.
+   * Pass `memory_store_id` to target a specific memory store.
    */
   async delete(agentId: string, memoryId: string, params?: DeleteMemoryParams): Promise<{ deleted: boolean; id: string }> {
-    const queryString = params?.user_id ? `?user_id=${encodeURIComponent(params.user_id)}` : '';
+    const queryParts: string[] = [];
+    if (params?.user_id) queryParts.push(`user_id=${encodeURIComponent(params.user_id)}`);
+    if (params?.memory_store_id) queryParts.push(`memory_store_id=${encodeURIComponent(params.memory_store_id)}`);
+    const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
     return this.client.delete<{ deleted: boolean; id: string }>(`/v1/agents/${agentId}/memories/${memoryId}${queryString}`);
   }
 

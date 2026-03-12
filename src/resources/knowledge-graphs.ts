@@ -91,8 +91,8 @@ export class KnowledgeGraphsResource {
   async listFiles(kgId: string, params?: {
     limit?: number;
     offset?: number;
-  }): Promise<{ object: 'list'; data: KgFileAssociation[] }> {
-    return this.client.get<{ object: 'list'; data: KgFileAssociation[] }>(`/v1/knowledge_graphs/${kgId}/files`, params);
+  }): Promise<{ object: 'list'; data: KgFileAssociation[]; total: number; limit: number; offset: number }> {
+    return this.client.get<{ object: 'list'; data: KgFileAssociation[]; total: number; limit: number; offset: number }>(`/v1/knowledge_graphs/${kgId}/files`, params);
   }
 
   /**

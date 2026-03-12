@@ -834,6 +834,8 @@ export interface CreateMemoryRequest {
   content: string;
   memory_type?: MemoryType;
   importance?: number;
+  /** Target a specific memory store (requires agent to be attached to the store). */
+  memory_store_id?: string;
   tags?: string[];
   session_id?: string;
   /** Target a specific user's memory graph (requires memory_user_scoping_enabled on the agent). */
@@ -844,12 +846,16 @@ export interface BatchCreateMemoryRequest {
   memories: CreateMemoryRequest[];
   /** Target a specific user's memory graph (requires memory_user_scoping_enabled on the agent). */
   user_id?: string;
+  /** Target a specific memory store (requires agent to be attached to the store). */
+  memory_store_id?: string;
 }
 
 export interface SearchMemoriesRequest {
   query: string;
   top_k?: number;
   memory_type?: MemoryType;
+  /** Target a specific memory store (requires agent to be attached to the store). */
+  memory_store_id?: string;
   min_score?: number;
   /** Target a specific user's memory graph (requires memory_user_scoping_enabled on the agent). */
   user_id?: string;
@@ -859,6 +865,8 @@ export interface ListMemoriesParams {
   limit?: number;
   offset?: number;
   memory_type?: MemoryType;
+  /** Target a specific memory store (requires agent to be attached to the store). */
+  memory_store_id?: string;
   /** Target a specific user's memory graph (requires memory_user_scoping_enabled on the agent). */
   user_id?: string;
 }
@@ -866,11 +874,15 @@ export interface ListMemoriesParams {
 export interface RetrieveMemoryParams {
   /** Target a specific user's memory graph (requires memory_user_scoping_enabled on the agent). */
   user_id?: string;
+  /** Target a specific memory store (requires agent to be attached to the store). */
+  memory_store_id?: string;
 }
 
 export interface DeleteMemoryParams {
   /** Target a specific user's memory graph (requires memory_user_scoping_enabled on the agent). */
   user_id?: string;
+  /** Target a specific memory store (requires agent to be attached to the store). */
+  memory_store_id?: string;
 }
 
 export interface ListMemoriesResponse {
@@ -891,6 +903,63 @@ export interface BatchCreateMemoryResponse {
   object: 'list';
   data: Memory[];
   total: number;
+}
+
+// Memory Store types
+
+export interface MemoryStore {
+  id: string;
+  object: 'memory_store';
+  project_id: string;
+  name: string;
+  description: string | null;
+  embedding_model: string | null;
+  user_scoping_enabled: boolean | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CreateMemoryStoreRequest {
+  name: string;
+  description?: string;
+  embedding_model?: string;
+  user_scoping_enabled?: boolean;
+}
+
+export interface UpdateMemoryStoreRequest {
+  name?: string;
+  description?: string;
+  user_scoping_enabled?: boolean;
+}
+
+export interface AttachMemoryStoreRequest {
+  memory_store_id: string;
+  role: 'read' | 'read_write';
+  is_default?: boolean;
+}
+
+export interface MemoryStoreAttachment {
+  agent_id: string;
+  memory_store_id: string;
+  store_name: string;
+  role: 'read' | 'read_write';
+  is_default: boolean;
+  embedding_model: string | null;
+  user_scoping_enabled: boolean | null;
+}
+
+export interface ListMemoryStoresResponse {
+  object: 'list';
+  data: MemoryStore[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+}
+
+export interface ListMemoryStoreAttachmentsResponse {
+  object: 'list';
+  data: MemoryStoreAttachment[];
 }
 
 // Workspace File types

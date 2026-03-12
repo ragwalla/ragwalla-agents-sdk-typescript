@@ -15,6 +15,7 @@ import { FeatureFlagsResource } from './resources/feature-flags';
 import { EndpointsResource } from './resources/endpoints';
 import { NamespaceFlagsResource } from './resources/namespace-flags';
 import { KnowledgeGraphsResource } from './resources/knowledge-graphs';
+import { MemoryStoresResource } from './resources/memory-stores';
 import { RagwallaConfig } from './types';
 
 export class Ragwalla {
@@ -33,6 +34,7 @@ export class Ragwalla {
   public readonly endpoints: EndpointsResource;
   public readonly namespaceFlags: NamespaceFlagsResource;
   public readonly knowledgeGraphs: KnowledgeGraphsResource;
+  public readonly memoryStores: MemoryStoresResource;
 
   private httpClient: HTTPClient;
   private config: RagwallaConfig;
@@ -59,6 +61,7 @@ export class Ragwalla {
     this.endpoints = new EndpointsResource(this.httpClient);
     this.namespaceFlags = new NamespaceFlagsResource(this.httpClient);
     this.knowledgeGraphs = new KnowledgeGraphsResource(this.httpClient);
+    this.memoryStores = new MemoryStoresResource(this.httpClient);
   }
 
   /**
@@ -103,6 +106,7 @@ export * from './resources/feature-flags';
 export * from './resources/endpoints';
 export * from './resources/namespace-flags';
 export * from './resources/knowledge-graphs';
+export * from './resources/memory-stores';
 
 // Default export
 export default Ragwalla;
