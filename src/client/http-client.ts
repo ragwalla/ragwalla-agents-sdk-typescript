@@ -204,6 +204,53 @@ export class HTTPClient {
     }
   }
 
+  async postFormData<T>(path: string, formData: FormData, options?: {
+    timeout?: number;
+    headers?: Record<string, string>;
+  }): Promise<T> {
+    const url = new URL(path, this.baseURL);
+
+    this.log('info', 'Making POST (multipart) request', { url: url.toString() });
+
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${this.apiKey}`,
+      'User-Agent': 'ragwalla-agents-sdk-typescript/1.0.0',
+      ...options?.headers
+    };
+    if (this.projectId) {
+      headers['X-Project-ID'] = this.projectId;
+    }
+
+    const controller = new AbortController();
+    const timeoutMs = options?.timeout ?? this.timeout;
+    const timeoutId = setTimeout(() => {
+      this.log('error', 'Request timeout reached', { url: url.toString(), timeout: timeoutMs });
+      controller.abort();
+    }, timeoutMs);
+
+    try {
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: controller.signal
+      });
+
+      this.log('info', 'POST (multipart) request completed', {
+        url: url.toString(),
+        status: response.status,
+        statusText: response.statusText
+      });
+
+      return this.handleResponse<T>(response);
+    } catch (error) {
+      this.log('error', 'POST (multipart) request failed', { url: url.toString(), error });
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
   async postEventStream<T>(path: string, data?: any): Promise<ReadableStream<T>> {
     const url = new URL(path, this.baseURL);
     

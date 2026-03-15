@@ -572,6 +572,80 @@ export interface VectorSearchResponse {
   };
 }
 
+// File types
+
+export type FilePurpose = 'assistants' | 'batch' | 'fine-tune' | 'vision' | 'user_data' | 'evals';
+
+export interface FileObject {
+  id: string;
+  object: 'file';
+  bytes: number;
+  created_at: number;
+  filename: string;
+  purpose: FilePurpose;
+  metadata?: Record<string, string | number | boolean>;
+}
+
+export interface FileListResponse {
+  object: 'list';
+  data: FileObject[];
+  first_id: string | null;
+  last_id: string | null;
+  has_more: boolean;
+}
+
+export interface FileDeleted {
+  id: string;
+  object: 'file';
+  deleted: boolean;
+}
+
+export interface UploadFileRequest {
+  file: Blob | File;
+  purpose: FilePurpose;
+  metadata?: Record<string, string | number | boolean>;
+}
+
+// Vector Store File types
+
+export interface VectorStoreFileChunkingStrategy {
+  type: 'auto' | 'static';
+  static?: {
+    max_chunk_size_tokens: number;
+    chunk_overlap_tokens: number;
+  };
+}
+
+export interface VectorStoreFile {
+  id: string;
+  object: 'vector_store.file';
+  usage_bytes: number;
+  created_at: number;
+  vector_store_id: string;
+  status: 'in_progress' | 'completed' | 'failed' | 'cancelled';
+  last_error: { code: string; message: string } | null;
+  chunking_strategy?: VectorStoreFileChunkingStrategy;
+}
+
+export interface CreateVectorStoreFileRequest {
+  file_id: string;
+  chunking_strategy?: VectorStoreFileChunkingStrategy;
+}
+
+export interface VectorStoreFileDeleted {
+  id: string;
+  object: 'vector_store.deleted';
+  deleted: boolean;
+}
+
+export interface VectorStoreFileListResponse {
+  object: 'list';
+  data: VectorStoreFile[];
+  first_id: string | null;
+  last_id: string | null;
+  has_more: boolean;
+}
+
 export interface QuotaEvent {
   action: string;
   metadata?: Record<string, any>;
