@@ -6,6 +6,7 @@ import {
   VectorStoreFileListResponse,
   VectorStoreFileDeleted,
   CreateVectorStoreFileRequest,
+  VectorStoreFileVectorsResponse,
 } from '../types';
 
 export class VectorStoresResource {
@@ -72,5 +73,19 @@ export class VectorStoresResource {
    */
   async removeFile(vectorStoreId: string, fileId: string): Promise<VectorStoreFileDeleted> {
     return this.client.delete<VectorStoreFileDeleted>(`/v1/vector_stores/${vectorStoreId}/files/${fileId}`);
+  }
+
+  /**
+   * Retrieve vectors for a specific file in a vector store
+   */
+  async getVectorsForFile(vectorStoreId: string, fileId: string, params?: {
+    limit?: number;
+    cursor?: string;
+    include_values?: boolean;
+  }): Promise<VectorStoreFileVectorsResponse> {
+    return this.client.get<VectorStoreFileVectorsResponse>(
+      `/v1/vector_stores/${vectorStoreId}/files/${fileId}/vectors`,
+      params
+    );
   }
 }

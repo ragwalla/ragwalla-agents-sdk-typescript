@@ -646,6 +646,21 @@ export interface VectorStoreFileListResponse {
   has_more: boolean;
 }
 
+export interface VectorStoreVector {
+  object: 'vector';
+  id: string;
+  values?: number[];
+  metadata?: Record<string, any>;
+  created_at?: number;
+}
+
+export interface VectorStoreFileVectorsResponse {
+  object: 'list';
+  data: VectorStoreVector[];
+  has_more: boolean;
+  next_cursor?: string;
+}
+
 export interface QuotaEvent {
   action: string;
   metadata?: Record<string, any>;
