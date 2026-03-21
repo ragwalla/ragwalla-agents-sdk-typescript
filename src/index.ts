@@ -3,6 +3,7 @@ import { RagwallaWebSocket } from './client/websocket-client';
 import { AgentsResource } from './resources/agents';
 import { AssistantsResource } from './resources/assistants';
 import { ThreadsResource } from './resources/threads';
+import { MessagesResource } from './resources/messages';
 import { VectorStoresResource } from './resources/vector-stores';
 import { QuotaResource } from './resources/quota';
 import { MCPServersResource } from './resources/mcp-servers';
@@ -23,6 +24,7 @@ export class Ragwalla {
   public readonly agents: AgentsResource;
   public readonly assistants: AssistantsResource;
   public readonly threads: ThreadsResource;
+  public readonly messages: MessagesResource;
   public readonly vectorStores: VectorStoresResource;
   public readonly quota: QuotaResource;
   public readonly mcpServers: MCPServersResource;
@@ -51,6 +53,7 @@ export class Ragwalla {
     this.agents = new AgentsResource(this.httpClient);
     this.assistants = new AssistantsResource(this.httpClient);
     this.threads = new ThreadsResource(this.httpClient);
+    this.messages = new MessagesResource(this.httpClient);
     this.vectorStores = new VectorStoresResource(this.httpClient);
     this.quota = new QuotaResource(this.httpClient);
     this.mcpServers = new MCPServersResource(this.httpClient);
