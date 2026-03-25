@@ -678,7 +678,7 @@ export interface WebSocketMessage {
   type: 'message' | 'chat_message' | 'chunk' | 'complete' | 'message_created' |
         'thread_info' | 'thread_history' | 'typing' | 'tool_use' | 'token_usage' | 'error' |
         'connection_status' | 'connected' | 'cf_agent_state' |
-        'run_paused' | 'continuation_mode_updated' | 'continue_run_result' |
+        'run_paused' | 'run_cancelled' | 'continuation_mode_updated' | 'continue_run_result' |
         'status';
   data?: any; // Optional - some message types don't use data wrapper
   content?: string; // For message types - content at top level
