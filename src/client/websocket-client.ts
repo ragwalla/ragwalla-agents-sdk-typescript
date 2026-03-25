@@ -302,6 +302,18 @@ export class RagwallaWebSocket {
   }
 
   /**
+   * Cancel the current active run, or a specific run by ID.
+   * Signals the agent to abort tool execution and mark the run as cancelled.
+   */
+  cancelRun(runId?: string): void {
+    this.log('info', 'Sending cancel run request', { runId });
+    this.send({
+      type: 'cancel_run',
+      ...(runId ? { runId } : {}),
+    });
+  }
+
+  /**
    * Check if WebSocket is connected
    */
   isConnected(): boolean {
@@ -439,6 +451,9 @@ export class RagwallaWebSocket {
         break;
       case 'continue_run_result':
         this.emit('continueRunResult', message.data || message);
+        break;
+      case 'run_cancelled':
+        this.emit('runCancelled', message.data || message);
         break;
       case 'error':
         this.emit('error', message.data || { error: message.content });
