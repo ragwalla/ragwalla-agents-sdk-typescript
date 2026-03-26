@@ -48,13 +48,22 @@ await ws.connect(agent.id, 'main', tokenResponse.token);
 
 ## Features
 
-- ✅ **Agent Management** - Create, update, and manage AI agents
+- ✅ **Agent Management** - Create, update, manage skills/tools, delegation, and child agents
 - ✅ **Assistant Management** - Create, update, and manage assistants
-- ✅ **Real-time WebSocket Chat** - Live streaming chat with automatic reconnection
-- ✅ **WebSocket-Only Communication** - All agent chat happens via WebSocket (no HTTP chat endpoints)
-- ✅ **Vector Search** - Semantic search across knowledge bases
-- ✅ **Tool Management** - Attach functions and assistants to agents
+- ✅ **Threads & Messages** - Create conversation threads and manage messages via REST
+- ✅ **Real-time WebSocket Chat** - Live streaming chat with automatic reconnection and run cancellation
+- ✅ **Organizations & Projects** - Manage orgs, projects, and webhooks
+- ✅ **Endpoints** - Provision and manage WfP dispatch endpoints
+- ✅ **MCP Servers** - Register MCP servers, discover tools, manage agent access, OAuth
+- ✅ **Files** - Upload and manage files
+- ✅ **Vector Stores** - Semantic search, file management, and vector inspection
+- ✅ **Knowledge Graphs** - Create graphs, manage entities/relationships, semantic search and query
+- ✅ **Memories & Memory Stores** - Agent memory CRUD, semantic search, shared memory stores
+- ✅ **Workspace Files** - Agent identity/configuration files (IDENTITY.md, SOUL.md, etc.)
+- ✅ **Channels** - Configure messaging channels (Telegram, Slack, WhatsApp)
+- ✅ **Models** - List available AI models
 - ✅ **Quota Management** - Track usage and limits
+- ✅ **Feature Flags** - Resolve flags at agent/project/org/namespace scope
 - ✅ **TypeScript Native** - Full type safety and IntelliSense
 - ✅ **Error Handling** - Comprehensive error types
 - ✅ **Automatic Retries** - Built-in retry logic for failed requests
@@ -135,6 +144,73 @@ const updatedAgent = await ragwalla.agents.update(agent.id, {
 await ragwalla.agents.delete(agent.id);
 ```
 
+### Skills (Tools)
+
+```typescript
+// Attach a skill
+const skill = await ragwalla.agents.attachSkill(agent.id, {
+  type: 'http',
+  name: 'docs-lookup',
+  description: 'Fetch documentation'
+});
+
+// List skills
+const skills = await ragwalla.agents.listSkills(agent.id);
+
+// Update a skill
+await ragwalla.agents.updateSkill(agent.id, skill.id, { description: 'Updated' });
+
+// Detach a skill
+await ragwalla.agents.detachSkill(agent.id, skill.id);
+
+// List available system skills
+const systemSkills = await ragwalla.agents.listSystemSkills();
+
+// Enable a system skill
+await ragwalla.agents.enableSystemSkill(agent.id, 'memory_search');
+
+// Bulk-enable system skills
+const result = await ragwalla.agents.enableSystemSkillsBulk(agent.id, [
+  'memory_search', 'memory_write', 'fetch_url'
+]);
+// result: { enabled: [...], skipped: 0, total: 3 }
+
+// Refresh all tool definitions (syncs MCP tools + reloads from DB)
+await ragwalla.agents.refreshTools(agent.id);
+```
+
+### Delegation & Child Agents
+
+```typescript
+// Grant delegation: allow agent to delegate to an orchestrator
+await ragwalla.agents.grantDelegationPermission(agent.id, orchestratorId, 'Orchestrator');
+
+// Revoke delegation
+await ragwalla.agents.revokeDelegationPermission(agent.id, orchestratorId);
+
+// List child agents (subagents of an orchestrator)
+const children = await ragwalla.agents.listChildren(orchestratorId);
+
+// Tear down a specific child
+await ragwalla.agents.teardownChild(orchestratorId, childId);
+
+// Tear down all children
+await ragwalla.agents.teardownAllChildren(orchestratorId);
+```
+
+### Knowledge Graph Attachments
+
+```typescript
+// Attach a knowledge graph to an agent
+await ragwalla.agents.attachKnowledgeGraph(agent.id, { knowledge_base_id: kgId });
+
+// List attached knowledge graphs
+const kgs = await ragwalla.agents.listKnowledgeGraphs(agent.id);
+
+// Detach
+await ragwalla.agents.detachKnowledgeGraph(agent.id, kgId);
+```
+
 ## Assistant Management
 
 ### Create an Assistant
@@ -188,42 +264,9 @@ const updatedAssistant = await ragwalla.assistants.update(assistant.id, {
 await ragwalla.assistants.delete(assistant.id);
 ```
 
-## Important: WebSocket-Only Chat
-
-**All agent chat communication happens via WebSocket, not HTTP.** The ragwalla-hono-worker server does not support HTTP chat completion endpoints. You must use WebSocket connections for real-time agent communication.
-
-### Why WebSocket?
-
-- ✅ Real-time streaming responses
-- ✅ Bidirectional communication
-- ✅ Lower latency
-- ✅ Automatic reconnection
-- ✅ Connection state management
-
-### Available HTTP Endpoints (CRUD Only)
-
-HTTP endpoints are only for managing agents, not chatting:
-
-```typescript
-// ✅ Create agent (HTTP)
-await ragwalla.agents.create({ name: 'Agent' });
-
-// ✅ List agents (HTTP)
-await ragwalla.agents.list();
-
-// ✅ Update agent (HTTP)
-await ragwalla.agents.update(agentId, { instructions: '...' });
-
-// ✅ Delete agent (HTTP)
-await ragwalla.agents.delete(agentId);
-
-// ✅ Get WebSocket token (HTTP)
-await ragwalla.agents.getToken({ agent_id: agentId });
-
-// ❌ NO HTTP chat endpoints - use WebSocket instead!
-```
-
 ## Real-time WebSocket Chat
+
+> **Note:** All agent chat happens via WebSocket, not HTTP. HTTP endpoints are for CRUD operations only (agents, threads, messages, etc.). Use `createWebSocket()` for real-time conversations.
 
 ### Basic WebSocket Usage
 
@@ -280,10 +323,13 @@ The WebSocket client emits the following events:
 - `typing` - Typing indicator (`{ isTyping }`)
 - `toolUse` - Tool usage information (`{ tools }`)
 - `runPaused` - Invocation paused awaiting manual resume (`{ runId, threadId, reason, stats })`
+- `runCancelled` - Run was cancelled (`{ runId }`)
 - `continuationModeUpdated` - Server acknowledged continuation mode change
 - `continueRunResult` - Response to a `continue_run` request (`{ status, runId, error? }`)
 
 #### Other Events
+- `status` - Transient status/progress updates (e.g., tool execution progress)
+- `threadHistory` - Thread message history (`{ threadId, messages, messageCount }`)
 - `tokenUsage` - Token usage statistics
 - `error` - Error occurred
 - `rawMessage` - Unhandled message types (for debugging)
@@ -339,6 +385,22 @@ ws.setContinuationMode('manual'); // switch to manual
 ws.setContinuationMode('auto');   // revert to auto scheduling
 ```
 
+### Cancelling a Run
+
+Cancel the active run (or a specific run by ID). The server responds with a `runCancelled` event.
+
+```typescript
+ws.on('runCancelled', ({ runId }) => {
+  console.log('Run cancelled:', runId);
+});
+
+// Cancel the current active run
+ws.cancelRun();
+
+// Cancel a specific run by ID
+ws.cancelRun('run_abc123');
+```
+
 ## Vector Search
 
 ### Simple Search
@@ -374,41 +436,351 @@ const results = await ragwalla.vectorStores.searchExtended('vector_store_id', {
 });
 ```
 
-## Tool Management
-
-### List Agent Tools
+### File Management in Vector Stores
 
 ```typescript
-const tools = await ragwalla.agents.listTools(agent.id);
-console.log(tools.data);
-```
+// Add a file to a vector store (triggers embedding)
+const vsFile = await ragwalla.vectorStores.addFile('vs_id', { file_id: 'file_abc' });
 
-### Attach a Tool
+// List files
+const files = await ragwalla.vectorStores.listFiles('vs_id', { limit: 20 });
 
-```typescript
-const tool = await ragwalla.agents.attachTool(agent.id, {
-  type: 'function',
-  function: {
-    name: 'get_weather',
-    description: 'Get current weather for a location',
-    parameters: {
-      type: 'object',
-      properties: {
-        location: {
-          type: 'string',
-          description: 'The city and state'
-        }
-      },
-      required: ['location']
-    }
-  }
+// Check file status
+const fileStatus = await ragwalla.vectorStores.retrieveFile('vs_id', 'file_abc');
+
+// Remove a file
+await ragwalla.vectorStores.removeFile('vs_id', 'file_abc');
+
+// Inspect vectors for a file (useful for debugging embeddings)
+const vectors = await ragwalla.vectorStores.getVectorsForFile('vs_id', 'file_abc', {
+  limit: 100,
+  include_values: true
 });
 ```
 
-### Detach a Tool
+## Threads
 
 ```typescript
-await ragwalla.agents.detachTool(agent.id, tool.id);
+// Create a thread (optionally seed with messages)
+const thread = await ragwalla.threads.create({
+  messages: [{ role: 'user', content: 'Hello!' }],
+  metadata: { source: 'web' }
+});
+
+// Retrieve
+const t = await ragwalla.threads.retrieve(thread.id);
+
+// Update metadata
+await ragwalla.threads.update(thread.id, { metadata: { stage: 'trial' } });
+
+// Delete
+await ragwalla.threads.delete(thread.id);
+```
+
+## Messages
+
+```typescript
+// Send a message on a thread
+const message = await ragwalla.messages.create(thread.id, {
+  role: 'user',
+  content: 'What can you do?',
+  metadata: { source: 'web' }
+});
+
+// Retrieve a single message
+const msg = await ragwalla.messages.retrieve(thread.id, message.id);
+
+// List messages with pagination
+let page = await ragwalla.messages.list(thread.id, { limit: 50, order: 'desc' });
+while (page.has_more && page.last_id) {
+  page = await ragwalla.messages.list(thread.id, {
+    limit: 50,
+    order: 'desc',
+    before: page.last_id
+  });
+}
+```
+
+## Organizations & Projects
+
+```typescript
+// List orgs
+const orgs = await ragwalla.organizations.list();
+
+// Create an org
+const org = await ragwalla.organizations.create({ name: 'Acme Corp' });
+
+// Create a project under an org
+const project = await ragwalla.organizations.projects.create(org.id, { name: 'Demo' });
+
+// List / retrieve / update / archive projects
+const projects = await ragwalla.organizations.projects.list(org.id);
+await ragwalla.organizations.projects.update(org.id, project.id, { description: 'Updated' });
+await ragwalla.organizations.projects.archive(org.id, project.id);
+```
+
+### Webhooks
+
+```typescript
+// Create an outbound webhook
+const webhook = await ragwalla.organizations.webhooks.create(org.id, {
+  url: 'https://example.com/webhook',
+  events: ['agent.message'],
+});
+
+// List / retrieve / update / delete
+const webhooks = await ragwalla.organizations.webhooks.list(org.id);
+await ragwalla.organizations.webhooks.update(org.id, webhook.id, { url: 'https://new.example.com' });
+await ragwalla.organizations.webhooks.delete(org.id, webhook.id);
+
+// List delivery attempts
+const deliveries = await ragwalla.organizations.webhooks.listDeliveries(org.id, webhook.id);
+```
+
+## Endpoints (WfP)
+
+Manage dispatch endpoints with platform keys (`pk-*`). Creation is async — poll until `status: 'active'`.
+
+```typescript
+const ep = await ragwalla.endpoints.create({ name: 'my-endpoint', variant: 'default' });
+
+// Poll until active
+const ready = await ragwalla.endpoints.retrieve(ep.id);
+
+// List all endpoints
+const endpoints = await ragwalla.endpoints.list();
+
+// Delete
+await ragwalla.endpoints.delete(ep.id);
+```
+
+## MCP Servers
+
+Register MCP (Model Context Protocol) servers so agents can invoke their tools.
+
+```typescript
+// Create an MCP server
+const server = await ragwalla.mcpServers.create({
+  name: 'CRM Tools',
+  url: 'https://crm.example.com/mcp',
+  transport_type: 'http',
+  auth_type: 'bearer',
+  auth_config: { token: process.env.CRM_MCP_TOKEN! }
+});
+
+// List / retrieve / update / delete
+const servers = await ragwalla.mcpServers.list();
+await ragwalla.mcpServers.update(server.id, { description: 'Updated' });
+await ragwalla.mcpServers.delete(server.id);
+
+// Test connectivity without saving
+const test = await ragwalla.mcpServers.test({
+  name: 'CRM Tools',
+  url: 'https://crm.example.com/mcp',
+  transport_type: 'http'
+});
+
+// Discover tools (cached for 1 hour)
+const { tools, server_info } = await ragwalla.mcpServers.discoverTools(server.id);
+
+// Grant/revoke agent access
+await ragwalla.mcpServers.grantAgentAccess(server.id, { agent_id: agent.id, enabled: true });
+const access = await ragwalla.mcpServers.listAgentAccess(server.id);
+await ragwalla.mcpServers.grantAgentAccess(server.id, { agent_id: agent.id, enabled: false });
+```
+
+### MCP OAuth
+
+```typescript
+// Start OAuth flow
+const { auth_url } = await ragwalla.mcpServers.startOAuth(server.id, 'https://app.com/callback');
+
+// Check status
+const { auth_status } = await ragwalla.mcpServers.oauthStatus(server.id);
+
+// Refresh / revoke
+await ragwalla.mcpServers.refreshOAuth(server.id);
+await ragwalla.mcpServers.revokeOAuth(server.id);
+```
+
+## Files
+
+```typescript
+// Upload a file
+const file = await ragwalla.files.upload({
+  file: myBlob,          // Blob or File
+  purpose: 'assistants',
+  metadata: { source: 'upload' }
+});
+
+// Retrieve / list / delete
+const f = await ragwalla.files.retrieve(file.id);
+const fileList = await ragwalla.files.list({ purpose: 'assistants', limit: 20 });
+await ragwalla.files.delete(file.id);
+```
+
+## Workspace Files
+
+Agent identity and configuration files (e.g., IDENTITY.md, SOUL.md, USER.md, TOOLS.md) that are loaded into the agent's context automatically.
+
+```typescript
+// Create or upsert
+await ragwalla.workspaceFiles.create(agent.id, {
+  file_type: 'IDENTITY',
+  content: '# Agent Identity\nYou are a support agent.'
+});
+
+// List all workspace files
+const wsFiles = await ragwalla.workspaceFiles.list(agent.id);
+
+// Retrieve / update / delete by type
+const identity = await ragwalla.workspaceFiles.retrieve(agent.id, 'IDENTITY');
+await ragwalla.workspaceFiles.update(agent.id, 'IDENTITY', { content: 'Updated content' });
+await ragwalla.workspaceFiles.delete(agent.id, 'IDENTITY');
+
+// Preview composed system prompt
+const preview = await ragwalla.workspaceFiles.preview(agent.id);
+```
+
+## Memories
+
+Agent memory — facts, preferences, and observations learned during conversations.
+
+```typescript
+// Create a memory
+const memory = await ragwalla.memories.create(agent.id, {
+  content: 'User prefers dark mode',
+  metadata: { category: 'preference' }
+});
+
+// Batch create (max 20)
+await ragwalla.memories.createBatch(agent.id, {
+  memories: [
+    { content: 'User works at Acme Corp' },
+    { content: 'User timezone is EST' }
+  ]
+});
+
+// Semantic search
+const results = await ragwalla.memories.search(agent.id, {
+  query: 'user preferences',
+  top_k: 5
+});
+
+// List / retrieve / delete
+const mems = await ragwalla.memories.list(agent.id, { limit: 50 });
+const mem = await ragwalla.memories.retrieve(agent.id, memory.id);
+await ragwalla.memories.delete(agent.id, memory.id);
+
+// User-scoped memories (pass user_id)
+await ragwalla.memories.search(agent.id, { query: 'preferences', user_id: 'user_123' });
+```
+
+## Memory Stores
+
+Shared memory stores that can be attached to multiple agents.
+
+```typescript
+// Create a memory store
+const store = await ragwalla.memoryStores.create({ name: 'Shared Knowledge' });
+
+// List / retrieve / update / delete
+const stores = await ragwalla.memoryStores.list();
+await ragwalla.memoryStores.update(store.id, { name: 'Updated Name' });
+await ragwalla.memoryStores.delete(store.id);
+
+// Attach to / detach from an agent
+await ragwalla.memoryStores.attachToAgent(agent.id, { memory_store_id: store.id });
+const attached = await ragwalla.memoryStores.listForAgent(agent.id);
+await ragwalla.memoryStores.detachFromAgent(agent.id, store.id);
+```
+
+## Knowledge Graphs
+
+```typescript
+// Create a knowledge graph
+const kg = await ragwalla.knowledgeGraphs.create({ name: 'Product KB' });
+
+// List / retrieve / update / delete
+const kgs = await ragwalla.knowledgeGraphs.list();
+await ragwalla.knowledgeGraphs.update(kg.id, { name: 'Updated' });
+await ragwalla.knowledgeGraphs.delete(kg.id);
+
+// Check provisioning status
+const status = await ragwalla.knowledgeGraphs.getStatus(kg.id);
+
+// Suggest an extraction schema from sampled data
+const schema = await ragwalla.knowledgeGraphs.suggestSchema(kg.id);
+
+// File management (add triggers entity extraction)
+await ragwalla.knowledgeGraphs.addFile(kg.id, { file_id: 'file_abc' });
+const kgFiles = await ragwalla.knowledgeGraphs.listFiles(kg.id);
+const kgFile = await ragwalla.knowledgeGraphs.getFile(kg.id, 'file_abc', { include_materialized: true });
+await ragwalla.knowledgeGraphs.removeFile(kg.id, 'file_abc');
+
+// Browse entities and relationships
+const entities = await ragwalla.knowledgeGraphs.listEntities(kg.id, { entity_type: 'Person' });
+const entity = await ragwalla.knowledgeGraphs.getEntity(kg.id, 'entity_id');
+const rels = await ragwalla.knowledgeGraphs.listRelationships(kg.id, { entity_id: 'entity_id' });
+
+// Semantic search
+const searchResults = await ragwalla.knowledgeGraphs.search(kg.id, { query: 'CEO' });
+
+// Graph-aware query (decompose → traverse → context)
+const queryResult = await ragwalla.knowledgeGraphs.query(kg.id, { query: 'Who reports to the CEO?' });
+```
+
+## Channels
+
+Configure messaging channels (Telegram, Slack, WhatsApp) for an agent.
+
+```typescript
+// Create/update a channel
+const channel = await ragwalla.channels.create(agent.id, {
+  type: 'telegram',
+  config: { bot_token: process.env.TG_BOT_TOKEN! }
+});
+
+// List / delete
+const channels = await ragwalla.channels.list(agent.id);
+await ragwalla.channels.delete(agent.id, channel.id);
+
+// Check status (includes live webhook status for Telegram)
+const chStatus = await ragwalla.channels.getStatus(agent.id, channel.id);
+
+// Retry webhook registration
+await ragwalla.channels.retryWebhook(agent.id, channel.id);
+```
+
+## Models
+
+```typescript
+const models = await ragwalla.models.list();
+// models.data: available models
+// models.curated: curated model IDs
+```
+
+## Feature Flags
+
+```typescript
+// Resolve flags (scope hierarchy: agent → project → org → global)
+const flags = await ragwalla.featureFlags.resolve({
+  flags: ['knowledge_graphs', 'mcp_oauth'],
+  agent_id: agent.id
+});
+```
+
+### Namespace Flags (platform keys only)
+
+```typescript
+// Set a namespace-level flag
+await ragwalla.namespaceFlags.set({ flag: 'beta_feature', enabled: true });
+
+// List all namespace flags
+const nsFlags = await ragwalla.namespaceFlags.list();
+
+// Delete
+await ragwalla.namespaceFlags.delete({ flag: 'beta_feature' });
 ```
 
 ## Quota Management
