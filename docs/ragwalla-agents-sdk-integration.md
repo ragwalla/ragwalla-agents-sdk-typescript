@@ -562,6 +562,213 @@ await client.agents.refreshTools(agent.id);
 // The agent can now call tools from the CRM MCP server during conversations.
 ```
 
+## Outbound webhooks
+
+Ragwalla pushes real-time events to your HTTPS endpoint via outbound webhooks. Use them for LLM usage metering, channel activity tracking, and integration with external systems.
+
+### Setup
+
+Register a webhook via the dashboard or REST API:
+
+```ts
+const response = await fetch(
+  `https://<tenant>.ai.ragwalla.com/v1/organizations/${orgId}/webhooks`,
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: 'My app sync',
+      endpoint_url: 'https://yourapp.com/api/webhooks/ragwalla',
+      event_subscriptions: ['*'],  // or specific patterns like ['llm.*', 'channel.message_sent']
+      auto_generate_secret: true,
+    }),
+  }
+);
+const { secret } = await response.json();
+// Store `secret` — it is shown only once. Use it to verify HMAC-SHA256 signatures.
+```
+
+### Subscription patterns
+
+Patterns use glob-style matching:
+
+| Pattern | Matches |
+|---|---|
+| `*` | All events |
+| `llm.*` | All LLM events |
+| `channel.*` | All channel events |
+| `llm.run_usage` | Only run usage summaries |
+| `channel.message_received` | Only inbound channel messages |
+
+### Verifying signatures
+
+Every delivery includes an `X-Webhook-Signature` header (if a secret is configured). Verify it with HMAC-SHA256:
+
+```ts
+app.post('/api/webhooks/ragwalla', async (req, res) => {
+  const signature = req.headers['x-webhook-signature'] as string;
+  const body = JSON.stringify(req.body);
+  const expected = 'sha256=' + crypto
+    .createHmac('sha256', WEBHOOK_SECRET)
+    .update(body)
+    .digest('hex');
+
+  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+    return res.status(401).send('Invalid signature');
+  }
+
+  // Process event...
+  res.status(200).send('ok');
+});
+```
+
+### Envelope format
+
+All events share a common envelope:
+
+```json
+{
+  "id": "evt_abc123def456",
+  "type": "llm.run_usage",
+  "organization_id": "org_xxx",
+  "project_id": "proj_xxx",
+  "agent_id": "agent_xxx",
+  "timestamp": 1711000000,
+  "data": { ... }
+}
+```
+
+Headers on each delivery:
+- `Content-Type: application/json`
+- `X-Webhook-Event: <event type>`
+- `X-Webhook-Delivery-Id: wdl_xxx`
+- `X-Webhook-Timestamp: <unix timestamp>`
+- `X-Webhook-Signature: sha256=<hex>` (if secret configured)
+
+### Event reference
+
+#### `llm.run_usage`
+
+Emitted when an agent run completes (or fails). Contains aggregated token totals across all LLM calls in the run.
+
+```json
+{
+  "data": {
+    "source": "interactive",
+    "status": "completed",
+    "input_tokens": 4200,
+    "output_tokens": 1350,
+    "total_tokens": 5550,
+    "llm_call_count": 3,
+    "models": ["gpt-4o"],
+    "thread_id": "thread_xxx",
+    "run_id": "run_xxx",
+    "channel_type": "telegram",
+    "task_name": "daily_check"
+  }
+}
+```
+
+| Field | Presence | Description |
+|---|---|---|
+| `source` | Always | `interactive`, `channel`, `cron`, or `heartbeat` |
+| `status` | Always | `completed` or `failed` |
+| `input_tokens` | Always | Total prompt tokens across all LLM calls |
+| `output_tokens` | Always | Total completion tokens across all LLM calls |
+| `total_tokens` | Always | `input_tokens + output_tokens` |
+| `llm_call_count` | Always | Number of LLM calls (1 for simple responses, more for tool loops) |
+| `models` | Always | Array of distinct model names used |
+| `thread_id` | When available | Present for interactive/channel/cron (with tools); absent for heartbeat and tool-less cron |
+| `run_id` | Interactive only | Only the interactive WS path creates run objects |
+| `channel_type` | Channel only | `telegram`, `whatsapp`, `slack`, `discord`, `teams`, `gmail`, `webhook` |
+| `task_name` | Cron only | The scheduled task's tool name |
+
+#### `channel.thread_created`
+
+Emitted when a new conversation thread is created for a channel session.
+
+```json
+{
+  "data": {
+    "thread_id": "thread_xxx",
+    "agent_id": "agent_xxx",
+    "channel_type": "telegram",
+    "channel_config_id": "ch_xxx",
+    "session_key": "telegram:agent_xxx:sender:12345",
+    "sender_id": "12345",
+    "sender_name": "Alice"
+  }
+}
+```
+
+#### `channel.message_received`
+
+Emitted when a user sends a message to an agent via a channel.
+
+```json
+{
+  "data": {
+    "thread_id": "thread_xxx",
+    "message_id": "msg_xxx",
+    "agent_id": "agent_xxx",
+    "channel_type": "telegram",
+    "sender_id": "12345",
+    "sender_name": "Alice",
+    "text": "Hello, can you help?"
+  }
+}
+```
+
+#### `channel.message_sent`
+
+Emitted when the agent sends a response back to the user via a channel.
+
+```json
+{
+  "data": {
+    "thread_id": "thread_xxx",
+    "message_id": "msg_xxx",
+    "agent_id": "agent_xxx",
+    "channel_type": "telegram",
+    "text": "Sure! How can I help you today?"
+  }
+}
+```
+
+#### `channel.conversation_reset`
+
+Emitted when a user sends the `/new` command to start a fresh conversation.
+
+```json
+{
+  "data": {
+    "thread_id": "thread_xxx",
+    "new_thread_id": "thread_yyy",
+    "agent_id": "agent_xxx",
+    "channel_type": "telegram",
+    "sender_id": "12345"
+  }
+}
+```
+
+### Delivery guarantees
+
+- Delivered asynchronously via Cloudflare Queues (never blocks agent execution).
+- Configurable retries: 0–10 attempts with exponential backoff (default: 3 retries, 1s base).
+- HTTP status < 300 is success; anything else triggers a retry.
+- Full delivery history (status, attempts, response) visible in the dashboard.
+
+### LLM usage metering for client apps
+
+Client apps that need per-user or per-org billing should subscribe to `llm.run_usage` and aggregate by their own user mapping:
+
+- **Interactive sessions**: Your proxy DO knows which user owns the WebSocket connection. Map `thread_id` → your user via the `chat_threads` table described in the WebSocket proxy section.
+- **Channel sessions**: `thread_id` is scoped per sender/channel/session. Map it via the channel's session key convention (`{channelType}:{agentId}:sender:{senderId}`).
+- **Cron/heartbeat**: Agent-level operations, not user-initiated. Attribute to the agent's owner or the org.
+
 ## Passing custom metadata to MCP servers (HTTP headers)
 When an agent calls an MCP server, the platform automatically forwards context as HTTP headers. To send your own metadata through to the MCP server, include a `metadata` object on the user message. That metadata will be serialized and attached as `X-Message-Metadata` on every MCP request.
 
