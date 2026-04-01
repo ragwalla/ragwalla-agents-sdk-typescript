@@ -699,7 +699,8 @@ export interface WebSocketMessage {
   assistantName?: string; // For thread_info messages
   status?: string; // For status messages - e.g., 'tool_executing', 'tool_complete', 'tool_progress', 'generating'
   message?: string; // For status messages - human-readable description
-  toolName?: string; // For status messages - the tool being executed
+  toolName?: string; // For status messages - the tool function name (stable identifier)
+  toolTitle?: string; // For status messages - human-readable display title for the tool
   toolCallId?: string; // For status messages - unique ID for this tool invocation
   toolType?: 'system' | 'mcp' | 'user' | 'unknown'; // For status messages - tool classification
   serverName?: string; // For MCP tool status messages - the MCP server name

@@ -433,6 +433,7 @@ export class RagwallaWebSocket {
           status: (message as any).status,
           message: (message as any).message,
           toolName: (message as any).toolName,
+          toolTitle: (message as any).toolTitle,
           toolCallId: (message as any).toolCallId,
           toolType: (message as any).toolType,
           serverName: (message as any).serverName,
