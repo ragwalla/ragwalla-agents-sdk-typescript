@@ -773,19 +773,26 @@ export interface WebhookRetryResponse {
 }
 
 // Organization types
+export interface OrganizationSettings {
+  payment?: string;
+  credits?: number;
+  [key: string]: any;
+}
+
 export interface CreateOrganizationRequest {
   name: string;
-  settings?: {
-    payment?: string;
-    credits?: number;
-  };
+  settings?: OrganizationSettings;
+}
+
+export interface UpdateOrganizationRequest {
+  name?: string;
 }
 
 export interface Organization {
   id: string;
   name: string;
   slug: string;
-  settings?: string;
+  settings?: OrganizationSettings;
   created_at: number;
   updated_at: number;
   projects?: Project[];

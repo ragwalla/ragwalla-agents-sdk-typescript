@@ -3,6 +3,7 @@ import {
   CreateOrganizationRequest,
   Organization,
   OrganizationList,
+  UpdateOrganizationRequest,
   Project,
   ProjectList,
   CreateProjectRequest,
@@ -150,5 +151,26 @@ export class OrganizationsResource {
    */
   async list(): Promise<OrganizationList> {
     return this.client.get<OrganizationList>('/v1/organizations');
+  }
+
+  /**
+   * Retrieve an organization by ID
+   */
+  async retrieve(orgId: string): Promise<Organization> {
+    return this.client.get<Organization>(`/v1/organizations/${orgId}`);
+  }
+
+  /**
+   * Update an organization
+   */
+  async update(orgId: string, request: UpdateOrganizationRequest): Promise<Organization> {
+    return this.client.patch<Organization>(`/v1/organizations/${orgId}`, request);
+  }
+
+  /**
+   * Delete an organization
+   */
+  async delete(orgId: string): Promise<{ ok: boolean }> {
+    return this.client.delete<{ ok: boolean }>(`/v1/organizations/${orgId}`);
   }
 }

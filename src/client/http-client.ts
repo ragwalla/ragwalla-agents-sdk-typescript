@@ -185,6 +185,25 @@ export class HTTPClient {
     }
   }
 
+  async patch<T>(path: string, data?: any): Promise<T> {
+    const url = new URL(path, this.baseURL);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await fetch(url.toString(), {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: data ? JSON.stringify(data) : undefined,
+        signal: controller.signal
+      });
+
+      return this.handleResponse<T>(response);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
   async delete<T>(path: string, data?: any): Promise<T> {
     const url = new URL(path, this.baseURL);
     const controller = new AbortController();
