@@ -509,6 +509,8 @@ const orgs = await ragwalla.organizations.list();
 
 // Create an org
 const org = await ragwalla.organizations.create({ name: 'Acme Corp' });
+const sameOrg = await ragwalla.organizations.retrieve(org.id);
+await ragwalla.organizations.update(org.id, { name: 'Acme Corp, Inc.' });
 
 // Create a project under an org
 const project = await ragwalla.organizations.projects.create(org.id, { name: 'Demo' });
@@ -517,6 +519,8 @@ const project = await ragwalla.organizations.projects.create(org.id, { name: 'De
 const projects = await ragwalla.organizations.projects.list(org.id);
 await ragwalla.organizations.projects.update(org.id, project.id, { description: 'Updated' });
 await ragwalla.organizations.projects.archive(org.id, project.id);
+// Delete the org only after cleaning up projects, API keys, and other org-scoped resources.
+await ragwalla.organizations.delete(org.id);
 ```
 
 ### Webhooks
