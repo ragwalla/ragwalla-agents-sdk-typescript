@@ -33,12 +33,26 @@ export class HTTPClient {
       throw new Error('baseURL is required');
     }
 
-    // Validate URL pattern: https://*.ai.ragwalla.com/v1
-    const urlPattern = /^https:\/\/[a-zA-Z0-9-]+\.ai\.ragwalla\.com\/v1\/?$/;
-    
-    if (!urlPattern.test(baseURL)) {
+    let parsed: URL;
+    try {
+      parsed = new URL(baseURL);
+    } catch {
       throw new Error(
-        'baseURL must follow the pattern: https://example.ai.ragwalla.com/v1\n' +
+        'baseURL must be a valid absolute URL ending in /v1\n' +
+        `Received: ${baseURL}`
+      );
+    }
+
+    if (parsed.protocol !== 'https:') {
+      throw new Error(
+        'baseURL must use https and end in /v1\n' +
+        `Received: ${baseURL}`
+      );
+    }
+
+    if ((parsed.pathname !== '/v1' && parsed.pathname !== '/v1/') || parsed.search || parsed.hash) {
+      throw new Error(
+        'baseURL must be a valid absolute URL ending in /v1\n' +
         `Received: ${baseURL}`
       );
     }

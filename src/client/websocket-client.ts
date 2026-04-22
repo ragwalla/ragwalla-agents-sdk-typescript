@@ -45,7 +45,7 @@ function createWebSocket(url: string): UniversalWebSocket {
 }
 
 export interface WebSocketConfig {
-  baseURL: string; // Required - must follow pattern: wss://example.ai.ragwalla.com/v1
+  baseURL: string; // Required - must be https://.../v1 or wss://.../v1
   reconnectAttempts?: number;
   reconnectDelay?: number;
   debug?: boolean; // Enable debug logging
@@ -90,18 +90,32 @@ export class RagwallaWebSocket {
       throw new Error('WebSocket baseURL is required');
     }
 
-    // Convert https:// to wss:// if needed and validate pattern
+    // Convert https:// to wss:// if needed and validate the resulting URL.
     let wsURL = baseURL;
     if (baseURL.startsWith('https://')) {
       wsURL = baseURL.replace('https://', 'wss://');
     }
 
-    // Validate URL pattern: wss://*.ai.ragwalla.com/v1
-    const urlPattern = /^wss:\/\/[a-zA-Z0-9-]+\.ai\.ragwalla\.com\/v1\/?$/;
-    
-    if (!urlPattern.test(wsURL)) {
+    let parsed: URL;
+    try {
+      parsed = new URL(wsURL);
+    } catch {
       throw new Error(
-        'WebSocket baseURL must follow the pattern: wss://example.ai.ragwalla.com/v1\n' +
+        'WebSocket baseURL must be a valid absolute URL ending in /v1\n' +
+        `Received: ${wsURL}`
+      );
+    }
+
+    if (parsed.protocol !== 'wss:') {
+      throw new Error(
+        'WebSocket baseURL must use wss or https and end in /v1\n' +
+        `Received: ${wsURL}`
+      );
+    }
+
+    if ((parsed.pathname !== '/v1' && parsed.pathname !== '/v1/') || parsed.search || parsed.hash) {
+      throw new Error(
+        'WebSocket baseURL must be a valid absolute URL ending in /v1\n' +
         `Received: ${wsURL}`
       );
     }

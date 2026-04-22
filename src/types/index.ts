@@ -1,6 +1,6 @@
 export interface RagwallaConfig {
   apiKey: string;
-  baseURL: string; // Now mandatory - must follow pattern: https://example.ai.ragwalla.com/v1
+  baseURL: string; // Now mandatory - must be a valid https://.../v1 URL
   projectId?: string; // Sent as X-Project-ID header — required for org-level keys that create project-scoped resources
   timeout?: number;
   debug?: boolean; // Enable debug logging
