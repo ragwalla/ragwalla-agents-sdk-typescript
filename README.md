@@ -154,6 +154,22 @@ const skill = await ragwalla.agents.attachSkill(agent.id, {
   description: 'Fetch documentation'
 });
 
+// Attach many skills in one request
+const bulkAttach = await ragwalla.agents.attachSkills(agent.id, [
+  {
+    type: 'mcp',
+    name: 'app_read_file',
+    description: 'Read a file from the app workspace',
+    serverId: 'mcp_server_123',
+    serverName: 'perspect-mcp-server',
+    serverUrl: 'https://example.com/mcp/site',
+    toolName: 'app_read_file',
+    transportType: 'http',
+    parameters: {}
+  }
+]);
+// bulkAttach: { created: [...], skipped: [...], failed: [...], total: 1 }
+
 // List skills
 const skills = await ragwalla.agents.listSkills(agent.id);
 

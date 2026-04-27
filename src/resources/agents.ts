@@ -8,6 +8,7 @@ import {
   Tool,
   ToolType,
   SystemTool,
+  type BulkAttachSkillsResponse,
 } from '../types';
 
 export class AgentsResource {
@@ -96,6 +97,19 @@ export class AgentsResource {
   async attachSkill(agentId: string, skill: Partial<Tool>): Promise<Tool> {
     const response = await this.client.post<any>(`/v1/agents/${agentId}/tools`, skill);
     return this.unwrapToolResponse(response);
+  }
+
+  /**
+   * Attach multiple skills to an agent in one request
+   */
+  async attachSkills(
+    agentId: string,
+    skills: Array<Partial<Tool>>
+  ): Promise<BulkAttachSkillsResponse> {
+    return this.client.post<BulkAttachSkillsResponse>(
+      `/v1/agents/${agentId}/tools/bulk-attach`,
+      { skills }
+    );
   }
 
   /** @deprecated Use attachSkill() instead */

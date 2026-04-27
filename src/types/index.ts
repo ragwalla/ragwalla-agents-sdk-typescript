@@ -213,6 +213,35 @@ export interface SystemTool extends BaseTool {
 
 export type Tool = FunctionTool | AssistantTool | ApiTool | KnowledgeBaseTool | KnowledgeGraphToolDef | MCPTool | SystemTool;
 
+export interface BulkAttachCreatedItem {
+  index: number;
+  skill: Tool;
+}
+
+export interface BulkAttachSkippedItem {
+  index: number;
+  name?: string;
+  toolName?: string;
+  reason: 'already_attached';
+  existingSkillId?: string;
+}
+
+export interface BulkAttachFailedItem {
+  index: number;
+  name?: string;
+  toolName?: string;
+  error: string;
+}
+
+export interface BulkAttachSkillsResponse {
+  object: 'bulk_attach_result';
+  agentId: string;
+  created: BulkAttachCreatedItem[];
+  skipped: BulkAttachSkippedItem[];
+  failed: BulkAttachFailedItem[];
+  total: number;
+}
+
 /** An agent skill = system-provided or user-created capability (excludes MCP tools) */
 export type AgentSkill = FunctionTool | SystemTool;
 
