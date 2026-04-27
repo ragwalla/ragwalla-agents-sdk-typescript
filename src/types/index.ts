@@ -76,6 +76,7 @@ export interface CreateAgentRequest {
   project_id?: string;
   temperature?: number;
   topP?: number;
+  maxTokens?: number;
   agentType?: 'orchestrator' | 'primary' | 'subagent';
   executionMode?: 'assistant' | 'execution-only';
   subagentLifecycle?: SubagentLifecycleConfig;
@@ -91,6 +92,7 @@ export interface UpdateAgentRequest {
   model?: string;
   temperature?: number;
   topP?: number;
+  maxTokens?: number;
   isEnabled?: boolean;
   tools?: AgentTool[];
   metadata?: Record<string, any>;
