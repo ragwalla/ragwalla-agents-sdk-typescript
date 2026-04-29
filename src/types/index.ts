@@ -1,3 +1,10 @@
+export type TruncationStrategy =
+  | { type: 'last_messages'; last_messages: number }
+  | { type: 'first_messages'; first_messages: number }
+  | { type: 'first_and_last'; first_messages: number; last_messages: number }
+  | { type: 'token_budget'; budget_chars: number }
+  | { type: 'previous_tool_execution'; last_cycles: number };
+
 export interface RagwallaConfig {
   apiKey: string;
   baseURL: string; // Now mandatory - must be a valid https://.../v1 URL

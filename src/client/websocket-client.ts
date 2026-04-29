@@ -1,4 +1,4 @@
-import { WebSocketMessage, ChatMessage } from '../types';
+import { WebSocketMessage, ChatMessage, TruncationStrategy } from '../types';
 
 // Universal WebSocket interface
 interface UniversalWebSocket {
@@ -50,6 +50,11 @@ export interface WebSocketConfig {
   reconnectDelay?: number;
   debug?: boolean; // Enable debug logging
   continuationMode?: 'auto' | 'manual';
+  truncationStrategy?: TruncationStrategy;
+  /** Max chars per KB search result chunk sent to the LLM */
+  maxKbCharsPerChunk?: number;
+  /** When true, the agent will embed the current user message and merge semantically relevant past messages before applying truncation */
+  semanticAugmentation?: boolean;
 }
 
 export class RagwallaWebSocket {
@@ -63,6 +68,9 @@ export class RagwallaWebSocket {
   private eventHandlers: Map<string, (event: any) => void> = new Map();
   private debug: boolean;
   private continuationMode: 'auto' | 'manual';
+  private truncationStrategy?: TruncationStrategy;
+  private maxKbCharsPerChunk?: number;
+  private semanticAugmentation?: boolean;
   // Reconnect state - persisted across connections for transparent reattach
   private lastConnectAgentId: string | null = null;
   private lastConnectConnectionId: string | null = null;
@@ -76,6 +84,9 @@ export class RagwallaWebSocket {
     this.reconnectDelay = config.reconnectDelay ?? 1000;
     this.debug = config.debug || false;
     this.continuationMode = config.continuationMode === 'manual' ? 'manual' : 'auto';
+    this.truncationStrategy = config.truncationStrategy;
+    this.maxKbCharsPerChunk = config.maxKbCharsPerChunk;
+    this.semanticAugmentation = config.semanticAugmentation;
   }
 
   private log(level: 'info' | 'warn' | 'error', message: string, data?: any): void {
@@ -276,8 +287,10 @@ export class RagwallaWebSocket {
       content: message.content,
       role: message.role,
       timestamp: new Date().toISOString(),
-      // Include optional fields if provided
-      ...(message.metadata && { metadata: message.metadata })
+      ...(message.metadata && { metadata: message.metadata }),
+      ...(this.truncationStrategy && { truncationStrategy: this.truncationStrategy }),
+      ...(this.maxKbCharsPerChunk !== undefined && { maxKbCharsPerChunk: this.maxKbCharsPerChunk }),
+      ...(this.semanticAugmentation !== undefined && { semanticAugmentation: this.semanticAugmentation }),
     };
 
     this.log('info', 'Sending WebSocket message', { payload });
@@ -316,6 +329,42 @@ export class RagwallaWebSocket {
       });
     } else {
       this.log('info', 'Continuation mode updated (will apply on next connect)', { mode: normalized });
+    }
+  }
+
+  setTruncationStrategy(strategy: TruncationStrategy | undefined): void {
+    this.truncationStrategy = strategy;
+
+    if (this.isConnected()) {
+      this.log('info', 'Sending truncation strategy update', { strategy });
+      this.send({
+        type: 'set_truncation_strategy',
+        truncationStrategy: strategy ?? null,
+      });
+    }
+  }
+
+  setMaxKbCharsPerChunk(maxChars: number | undefined): void {
+    this.maxKbCharsPerChunk = maxChars;
+
+    if (this.isConnected()) {
+      this.log('info', 'Sending maxKbCharsPerChunk update', { maxChars });
+      this.send({
+        type: 'set_max_kb_chars_per_chunk',
+        maxKbCharsPerChunk: maxChars ?? null,
+      });
+    }
+  }
+
+  setSemanticAugmentation(enabled: boolean): void {
+    this.semanticAugmentation = enabled;
+
+    if (this.isConnected()) {
+      this.log('info', 'Sending semantic augmentation update', { enabled });
+      this.send({
+        type: 'set_semantic_augmentation',
+        enabled,
+      });
     }
   }
 
