@@ -63,6 +63,12 @@ export class RagwallaWebSocket {
   private eventHandlers: Map<string, (event: any) => void> = new Map();
   private debug: boolean;
   private continuationMode: 'auto' | 'manual';
+  // Reconnect state - persisted across connections for transparent reattach
+  private lastConnectAgentId: string | null = null;
+  private lastConnectConnectionId: string | null = null;
+  private lastConnectToken: string | null = null;
+  private activeThreadId: string | null = null;
+  private lastEventId: number | null = null;
 
   constructor(config: WebSocketConfig) {
     this.validateAndSetWebSocketURL(config.baseURL);
@@ -132,12 +138,21 @@ export class RagwallaWebSocket {
    * @param threadId - Optional Ragwalla thread ID. If provided, resumes that thread. If omitted, a new thread is created on first message.
    */
   async connect(agentId: string, connectionId: string, token: string, threadId?: string): Promise<void> {
+    this.lastConnectAgentId = agentId;
+    this.lastConnectConnectionId = connectionId;
+    this.lastConnectToken = token;
+    // Prefer explicit threadId arg; fall back to activeThreadId from prior connected message
+    const effectiveThreadId = threadId ?? this.activeThreadId ?? undefined;
+
     const params = new URLSearchParams({
       token,
       continuation_mode: this.continuationMode
     });
-    if (threadId) {
-      params.set('thread_id', threadId);
+    if (effectiveThreadId) {
+      params.set('thread_id', effectiveThreadId);
+    }
+    if (this.lastEventId !== null) {
+      params.set('last_event_id', String(this.lastEventId));
     }
     const url = `${this.baseURL}/agents/${agentId}/${connectionId}?${params.toString()}`;
     
@@ -185,10 +200,14 @@ export class RagwallaWebSocket {
         if (!this.isManuallyDisconnected && this.currentAttempts < this.reconnectAttempts) {
           const delay = this.reconnectDelay * this.currentAttempts;
           this.log('info', `Attempting reconnection ${this.currentAttempts + 1}/${this.reconnectAttempts} in ${delay}ms`);
-          
+
           setTimeout(() => {
             this.currentAttempts++;
-            this.connect(agentId, connectionId, token).catch(() => {
+            // Use stored params so reconnect carries thread_id + last_event_id
+            const reconnectAgentId = this.lastConnectAgentId!;
+            const reconnectConnectionId = this.lastConnectConnectionId!;
+            const reconnectToken = this.lastConnectToken!;
+            this.connect(reconnectAgentId, reconnectConnectionId, reconnectToken).catch(() => {
               if (this.currentAttempts >= this.reconnectAttempts) {
                 this.log('error', 'All reconnection attempts failed', { attempts: this.currentAttempts });
                 this.emit('reconnectFailed', { attempts: this.currentAttempts });
@@ -379,6 +398,11 @@ export class RagwallaWebSocket {
   }
 
   private handleMessage(message: WebSocketMessage): void {
+    // Track the highest event ID seen for replay on reconnect
+    if (message._event_id !== undefined && (this.lastEventId === null || message._event_id > this.lastEventId)) {
+      this.lastEventId = message._event_id;
+    }
+
     switch (message.type) {
       case 'message':
       case 'chat_message':
@@ -395,19 +419,25 @@ export class RagwallaWebSocket {
         // Streaming message chunk from server
         this.emit('chunk', {
           content: (message as any).content,
-          messageId: (message as any).messageId
+          messageId: (message as any).messageId,
+          _event_id: (message as any)._event_id,
+          _replay: (message as any)._replay
         });
         // Also emit as message for compatibility
         this.emit('message', {
           content: (message as any).content,
           role: 'assistant',
-          messageId: (message as any).messageId
+          messageId: (message as any).messageId,
+          _event_id: (message as any)._event_id,
+          _replay: (message as any)._replay
         });
         break;
       case 'complete':
         // Message completion event
         this.emit('complete', {
-          messageId: (message as any).messageId
+          messageId: (message as any).messageId,
+          _event_id: (message as any)._event_id,
+          _replay: (message as any)._replay
         });
         break;
       case 'message_created':
@@ -441,6 +471,27 @@ export class RagwallaWebSocket {
           tools: (message as any).tools
         });
         break;
+      case 'tool_executing':
+        this.emit('toolExecuting', {
+          toolName: (message as any).toolName,
+          toolTitle: (message as any).toolTitle,
+          toolCallId: (message as any).toolCallId,
+          toolType: (message as any).toolType,
+          serverName: (message as any).serverName,
+          _event_id: (message as any)._event_id,
+          _replay: (message as any)._replay
+        });
+        break;
+      case 'tool_complete':
+        this.emit('toolComplete', {
+          toolName: (message as any).toolName,
+          toolTitle: (message as any).toolTitle,
+          toolCallId: (message as any).toolCallId,
+          toolType: (message as any).toolType,
+          _event_id: (message as any)._event_id,
+          _replay: (message as any)._replay
+        });
+        break;
       case 'status':
         // Transient status update (e.g., tool executing, generating response, MCP progress)
         this.emit('status', {
@@ -452,7 +503,9 @@ export class RagwallaWebSocket {
           toolType: (message as any).toolType,
           serverName: (message as any).serverName,
           progress: (message as any).progress,
-          total: (message as any).total
+          total: (message as any).total,
+          _event_id: (message as any)._event_id,
+          _replay: (message as any)._replay
         });
         break;
       case 'token_usage':
@@ -474,9 +527,23 @@ export class RagwallaWebSocket {
         this.emit('error', message.data || { error: message.content });
         break;
       case 'connection_status':
-      case 'connected':
-        this.emit('connectionStatus', message.data || message);
+      case 'connected': {
+        const connMsg = message.data || message;
+        // Update active thread so reconnects reattach to the same thread
+        if (connMsg.currentThreadId) {
+          this.activeThreadId = connMsg.currentThreadId;
+        }
+        this.emit('connectionStatus', connMsg);
+        // If server reports an in-progress run, emit runResumed so UI can restore state
+        if (connMsg.activeRunId) {
+          this.emit('runResumed', {
+            runId: connMsg.activeRunId,
+            status: connMsg.activeRunStatus,
+            threadId: connMsg.currentThreadId ?? this.activeThreadId
+          });
+        }
         break;
+      }
       case 'cf_agent_state':
         // Cloudflare agent state updates - emit as raw message
         this.emit('agentState', message.data || message);

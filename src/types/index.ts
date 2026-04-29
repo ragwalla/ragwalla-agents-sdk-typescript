@@ -710,7 +710,7 @@ export interface WebSocketMessage {
         'thread_info' | 'thread_history' | 'typing' | 'tool_use' | 'token_usage' | 'error' |
         'connection_status' | 'connected' | 'cf_agent_state' |
         'run_paused' | 'run_cancelled' | 'continuation_mode_updated' | 'continue_run_result' |
-        'status';
+        'status' | 'tool_executing' | 'tool_complete';
   data?: any; // Optional - some message types don't use data wrapper
   content?: string; // For message types - content at top level
   role?: string; // For message types
@@ -737,6 +737,12 @@ export interface WebSocketMessage {
   serverName?: string; // For MCP tool status messages - the MCP server name
   progress?: number; // For tool_progress status - current progress value (from MCP notifications/progress)
   total?: number; // For tool_progress status - total expected value (from MCP notifications/progress)
+  // Reconnect/replay fields
+  currentThreadId?: string; // Sent in 'connected' message - thread currently active on this connection
+  activeRunId?: string; // Sent in 'connected' message - run in progress at reconnect time
+  activeRunStatus?: 'in_progress' | 'requires_action'; // Sent in 'connected' message
+  _event_id?: number; // DB-assigned monotonic event ID, sent on logged run events and replayed events
+  _replay?: boolean; // True when event is being replayed from run_events (missed during disconnect)
 }
 
 export interface RagwallaError {
