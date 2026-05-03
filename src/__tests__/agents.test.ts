@@ -18,6 +18,58 @@ describe('AgentsResource', () => {
     agents = new AgentsResource(client as any);
   });
 
+  it('maps create-time systemSkillIds to backend systemToolIds', async () => {
+    const response = {
+      id: 'agent_123',
+      name: 'Coordinator',
+      systemToolIds: ['create_subagent', 'teardown_subagent'],
+    };
+    client.post.mockResolvedValue(response);
+
+    const result = await agents.create({
+      name: 'Coordinator',
+      instructions: 'Coordinate work',
+      agentType: 'orchestrator',
+      systemSkillIds: ['create_subagent', 'teardown_subagent'],
+    });
+
+    expect(client.post).toHaveBeenCalledWith('/v1/agents', {
+      name: 'Coordinator',
+      instructions: 'Coordinate work',
+      agentType: 'orchestrator',
+      systemToolIds: ['create_subagent', 'teardown_subagent'],
+    });
+    expect(result).toEqual(response);
+  });
+
+  it('maps update-time systemSkillIds to backend systemToolIds', async () => {
+    const response = {
+      id: 'agent_123',
+      name: 'Coordinator',
+      systemToolIds: ['create_subagent'],
+    };
+    client.put.mockResolvedValue(response);
+
+    await agents.update('agent_123', {
+      systemSkillIds: ['create_subagent'],
+    });
+
+    expect(client.put).toHaveBeenCalledWith('/v1/agents/agent_123', {
+      systemToolIds: ['create_subagent'],
+    });
+  });
+
+  it('rejects conflicting systemSkillIds and deprecated systemToolIds', async () => {
+    await expect(agents.create({
+      name: 'Coordinator',
+      instructions: 'Coordinate work',
+      systemSkillIds: ['create_subagent'],
+      systemToolIds: ['teardown_subagent'],
+    })).rejects.toThrow('Specify either systemSkillIds or systemToolIds, not both');
+
+    expect(client.post).not.toHaveBeenCalled();
+  });
+
   it('bulk-attaches skills with the expected path and body', async () => {
     const skills: Array<Partial<Tool>> = [
       {

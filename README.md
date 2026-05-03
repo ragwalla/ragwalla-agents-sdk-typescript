@@ -112,6 +112,7 @@ const agent = await ragwalla.agents.create({
   model: 'gpt-4',
   instructions: 'You are a helpful customer support representative.',
   tools: ['tool_id_1', 'tool_id_2'],
+  systemSkillIds: ['memory_search', 'fetch_url'],
   metadata: {
     department: 'support',
     version: '1.0'
@@ -190,6 +191,17 @@ const result = await ragwalla.agents.enableSystemSkillsBulk(agent.id, [
   'memory_search', 'memory_write', 'fetch_url'
 ]);
 // result: { enabled: [...], skipped: 0, total: 3 }
+
+// Or provision system skills while creating the agent.
+// For orchestrators, omit systemSkillIds to use platform defaults.
+// Pass [] to opt out of default DB-backed system skills.
+const orchestrator = await ragwalla.agents.create({
+  name: 'Coordinator',
+  instructions: 'Coordinate work across child agents.',
+  agentType: 'orchestrator',
+  executionMode: 'execution-only',
+  systemSkillIds: ['create_subagent', 'teardown_subagent']
+});
 
 // Refresh all tool definitions (syncs MCP tools + reloads from DB)
 await ragwalla.agents.refreshTools(agent.id);

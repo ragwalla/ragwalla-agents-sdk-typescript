@@ -14,6 +14,31 @@ import {
 export class AgentsResource {
   constructor(private client: HTTPClient) {}
 
+  private normalizeSystemSkillProvisioning<T extends CreateAgentRequest | UpdateAgentRequest>(
+    request: T
+  ): Omit<T, 'systemSkillIds'> & { systemToolIds?: string[] } {
+    const { systemSkillIds, systemToolIds, ...rest } = request;
+
+    if (systemSkillIds !== undefined && systemToolIds !== undefined) {
+      const sameIds =
+        systemSkillIds.length === systemToolIds.length &&
+        systemSkillIds.every((id, index) => id === systemToolIds[index]);
+
+      if (!sameIds) {
+        throw new Error('Specify either systemSkillIds or systemToolIds, not both');
+      }
+    }
+
+    return {
+      ...rest,
+      ...(systemSkillIds !== undefined
+        ? { systemToolIds: systemSkillIds }
+        : systemToolIds !== undefined
+          ? { systemToolIds }
+          : {}),
+    } as Omit<T, 'systemSkillIds'> & { systemToolIds?: string[] };
+  }
+
   private unwrapToolResponse(response: any): Tool {
     if (response && typeof response === 'object' && 'tool' in response && response.tool) {
       return response.tool as Tool;
@@ -25,7 +50,10 @@ export class AgentsResource {
    * Create a new agent
    */
   async create(request: CreateAgentRequest): Promise<Agent> {
-    return this.client.post<Agent>('/v1/agents', request);
+    return this.client.post<Agent>(
+      '/v1/agents',
+      this.normalizeSystemSkillProvisioning(request)
+    );
   }
 
   /**
@@ -51,7 +79,10 @@ export class AgentsResource {
    * Update an agent
    */
   async update(agentId: string, request: UpdateAgentRequest): Promise<Agent> {
-    return this.client.put<Agent>(`/v1/agents/${agentId}`, request);
+    return this.client.put<Agent>(
+      `/v1/agents/${agentId}`,
+      this.normalizeSystemSkillProvisioning(request)
+    );
   }
 
   /**

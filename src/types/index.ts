@@ -40,6 +40,8 @@ export interface Agent {
   model?: string;
   instructions?: string;
   tools?: Tool[];
+  systemToolsProvisioned?: boolean;
+  systemToolIds?: string[];
   metadata?: Record<string, any>;
   temperature?: number;
   topP?: number;
@@ -79,6 +81,14 @@ export interface CreateAgentRequest {
   model?: string;
   instructions?: string;
   tools?: string[];
+  /**
+   * System skill IDs to provision with the agent. Omit to use platform defaults
+   * for orchestrators. Pass an explicit empty array to provision no DB-backed
+   * system tools.
+   */
+  systemSkillIds?: string[];
+  /** @deprecated Use systemSkillIds instead. */
+  systemToolIds?: string[];
   metadata?: Record<string, any>;
   project_id?: string;
   temperature?: number;
@@ -102,6 +112,13 @@ export interface UpdateAgentRequest {
   maxTokens?: number;
   isEnabled?: boolean;
   tools?: AgentTool[];
+  /**
+   * System skill IDs to provision on the agent. Omit to preserve the current
+   * provisioned system skill set.
+   */
+  systemSkillIds?: string[];
+  /** @deprecated Use systemSkillIds instead. */
+  systemToolIds?: string[];
   metadata?: Record<string, any>;
   agentType?: 'orchestrator' | 'primary' | 'subagent';
   executionMode?: 'assistant' | 'execution-only';
