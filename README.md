@@ -365,6 +365,15 @@ The WebSocket client emits the following events:
 - `error` - Error occurred
 - `rawMessage` - Unhandled message types (for debugging)
 
+### Reconnection & Resume
+
+The client automatically reconnects after a dropped socket and recovers an in-flight
+streamed reply — you get a `resume` frame with the message's current text, then live
+`chunk`s continue. **`resume` is a full snapshot: replace the bubble text with it, then
+append subsequent chunks.** See **[docs/reconnect-resume.md](docs/reconnect-resume.md)** for
+the full guide, including how to implement the same protocol without the SDK (raw WebSocket,
+for non-TypeScript clients).
+
 ### Streaming Response Example
 
 ```typescript
