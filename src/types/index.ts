@@ -729,12 +729,36 @@ export interface QuotaStatus {
   reset_date?: string;
 }
 
+/**
+ * Canonical run status union — kept verbatim with the worker
+ * (ragwalla-hono-worker `src/lib/interfaces/runs.ts`). The nine statuses partition
+ * into the terminal set below and the active set (queued, in_progress,
+ * requires_action, cancelling). Keep all of these in sync with the worker.
+ */
+export type RunStatus =
+  | 'queued' | 'in_progress' | 'requires_action' | 'cancelling'
+  | 'cancelled' | 'failed' | 'completed' | 'incomplete' | 'expired';
+
+/** Statuses after which a run emits no further events. */
+export const TERMINAL_RUN_STATUSES: ReadonlySet<RunStatus> = new Set<RunStatus>([
+  'cancelled', 'failed', 'completed', 'incomplete', 'expired',
+]);
+
+/**
+ * True when a run status is terminal. Accepts the raw value off the wire (the
+ * `run_state` frame's `runStatus` is a plain string at the boundary); membership in
+ * the canonical set is authoritative.
+ */
+export function isTerminalRunStatus(status: string | null | undefined): boolean {
+  return status != null && TERMINAL_RUN_STATUSES.has(status as RunStatus);
+}
+
 export interface WebSocketMessage {
   type: 'message' | 'chat_message' | 'chunk' | 'complete' | 'message_created' |
         'thread_info' | 'thread_history' | 'typing' | 'tool_use' | 'token_usage' | 'error' |
         'connection_status' | 'connected' | 'cf_agent_state' |
         'run_paused' | 'run_cancelled' | 'continuation_mode_updated' | 'continue_run_result' |
-        'status' | 'tool_executing' | 'tool_complete';
+        'status' | 'tool_executing' | 'tool_complete' | 'resume' | 'run_state';
   data?: any; // Optional - some message types don't use data wrapper
   content?: string; // For message types - content at top level
   role?: string; // For message types
@@ -761,12 +785,12 @@ export interface WebSocketMessage {
   serverName?: string; // For MCP tool status messages - the MCP server name
   progress?: number; // For tool_progress status - current progress value (from MCP notifications/progress)
   total?: number; // For tool_progress status - total expected value (from MCP notifications/progress)
-  // Reconnect/replay fields
+  // Reconnect/resume fields
   currentThreadId?: string; // Sent in 'connected' message - thread currently active on this connection
   activeRunId?: string; // Sent in 'connected' message - run in progress at reconnect time
-  activeRunStatus?: 'in_progress' | 'requires_action'; // Sent in 'connected' message
-  _event_id?: number; // DB-assigned monotonic event ID, sent on logged run events and replayed events
-  _replay?: boolean; // True when event is being replayed from run_events (missed during disconnect)
+  activeRunStatus?: RunStatus; // Sent in 'connected' message; reconnect can report any status (incl. terminal)
+  runStatus?: RunStatus; // Sent in 'run_state' - current status of the run on this connection
+  activeTool?: { toolName: string; toolTitle?: string; progress?: number } | null; // 'run_state' - best-effort; null in v1
 }
 
 export interface RagwallaError {

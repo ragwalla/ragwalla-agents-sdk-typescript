@@ -344,12 +344,15 @@ The WebSocket client emits the following events:
 - `chunk` - Streaming content chunk (`{ content, messageId }`)
 - `complete` - Message completion (`{ messageId }`)
 - `messageCreated` - New message started (`{ messageId, role }`)
+- `resume` - On reconnect, the current visible text of the in-flight message bubble (`{ messageId, content }`). Replace the bubble body with `content`, then continue appending live `chunk`s.
 
 #### Agent Events
 - `agentState` - Agent state updates (Cloudflare-specific)
 - `threadInfo` - Thread information (`{ threadId, assistantId, isNewThread }`)
 - `typing` - Typing indicator (`{ isTyping }`)
 - `toolUse` - Tool usage information (`{ tools }`)
+- `runState` - On reconnect, the current run status for this connection (`{ runId, runStatus, activeTool }`). `runStatus` is a `RunStatus` (may be terminal if the run finished while disconnected); `activeTool` is `null` in v1.
+- `runResumed` - **Deprecated** — superseded by `runState`. Still emitted from the `connected` frame's active run and from a non-terminal `runState` (`{ runId, status, threadId }`) for existing consumers; prefer `runState` (richer: adds `activeTool` and terminal statuses).
 - `runPaused` - Invocation paused awaiting manual resume (`{ runId, threadId, reason, stats })`
 - `runCancelled` - Run was cancelled (`{ runId }`)
 - `continuationModeUpdated` - Server acknowledged continuation mode change
