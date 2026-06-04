@@ -1,4 +1,4 @@
-import { WebSocketMessage, ChatMessage, TruncationStrategy } from '../types';
+import { WebSocketMessage, ChatMessage, TruncationStrategy, isTerminalRunStatus } from '../types';
 
 // Universal WebSocket interface
 interface UniversalWebSocket {
@@ -76,7 +76,9 @@ export class RagwallaWebSocket {
   private lastConnectConnectionId: string | null = null;
   private lastConnectToken: string | null = null;
   private activeThreadId: string | null = null;
-  private lastEventId: number | null = null;
+  // The in-flight assistant message id (the bubble currently streaming). Sent as
+  // resume_message_id on reconnect so the worker resumes the right message (§6a).
+  private activeMessageId: string | null = null;
 
   constructor(config: WebSocketConfig) {
     this.validateAndSetWebSocketURL(config.baseURL);
@@ -152,6 +154,14 @@ export class RagwallaWebSocket {
     this.lastConnectAgentId = agentId;
     this.lastConnectConnectionId = connectionId;
     this.lastConnectToken = token;
+    // Persist an explicitly-provided thread id immediately. The auto-reconnect path
+    // (closeHandler) re-invokes connect() WITHOUT the threadId arg and relies on
+    // activeThreadId; the worker's connected/thread_info frames also set it, but if the
+    // socket drops after `open` and before those arrive, the thread would be lost on
+    // reconnect (no history, no run_state/resume). Persisting here closes that window.
+    if (threadId) {
+      this.activeThreadId = threadId;
+    }
     // Prefer explicit threadId arg; fall back to activeThreadId from prior connected message
     const effectiveThreadId = threadId ?? this.activeThreadId ?? undefined;
 
@@ -162,8 +172,14 @@ export class RagwallaWebSocket {
     if (effectiveThreadId) {
       params.set('thread_id', effectiveThreadId);
     }
-    if (this.lastEventId !== null) {
-      params.set('last_event_id', String(this.lastEventId));
+    // Resume the in-flight message after a drop (§6a item 3). Gate on effectiveThreadId:
+    // the worker's resume read is thread-scoped (§3), so resume_message_id is meaningless
+    // without thread_id. Gating makes that invariant hold BY CONSTRUCTION — the SDK can
+    // never emit an unscoped resume id — and an (unexpected) unknown-thread state degrades
+    // to an ordinary reconnect (fresh history reconciles) instead of throwing inside
+    // connect(), which on the auto-reconnect path would strand the client with no retry.
+    if (this.activeMessageId && effectiveThreadId) {
+      params.set('resume_message_id', this.activeMessageId);
     }
     const url = `${this.baseURL}/agents/${agentId}/${connectionId}?${params.toString()}`;
     
@@ -214,7 +230,7 @@ export class RagwallaWebSocket {
 
           setTimeout(() => {
             this.currentAttempts++;
-            // Use stored params so reconnect carries thread_id + last_event_id
+            // Use stored params so reconnect carries thread_id + resume_message_id
             const reconnectAgentId = this.lastConnectAgentId!;
             const reconnectConnectionId = this.lastConnectConnectionId!;
             const reconnectToken = this.lastConnectToken!;
@@ -447,11 +463,6 @@ export class RagwallaWebSocket {
   }
 
   private handleMessage(message: WebSocketMessage): void {
-    // Track the highest event ID seen for replay on reconnect
-    if (message._event_id !== undefined && (this.lastEventId === null || message._event_id > this.lastEventId)) {
-      this.lastEventId = message._event_id;
-    }
-
     switch (message.type) {
       case 'message':
       case 'chat_message':
@@ -465,41 +476,49 @@ export class RagwallaWebSocket {
         this.emit('message', messageData);
         break;
       case 'chunk':
-        // Streaming message chunk from server
+        // Streaming message chunk from server. Track the in-flight message id as a
+        // fallback in case message_created was missed (e.g. socket dropped before it),
+        // so a reconnect can still resume this message (§6a item 2).
+        if ((message as any).messageId) {
+          this.activeMessageId = (message as any).messageId;
+        }
         this.emit('chunk', {
           content: (message as any).content,
-          messageId: (message as any).messageId,
-          _event_id: (message as any)._event_id,
-          _replay: (message as any)._replay
+          messageId: (message as any).messageId
         });
         // Also emit as message for compatibility
         this.emit('message', {
           content: (message as any).content,
           role: 'assistant',
-          messageId: (message as any).messageId,
-          _event_id: (message as any)._event_id,
-          _replay: (message as any)._replay
+          messageId: (message as any).messageId
         });
         break;
       case 'complete':
-        // Message completion event
+        // Message completion event — the in-flight message is done.
+        this.activeMessageId = null;
         this.emit('complete', {
-          messageId: (message as any).messageId,
-          _event_id: (message as any)._event_id,
-          _replay: (message as any)._replay
+          messageId: (message as any).messageId
         });
         break;
       case 'message_created':
-        // New message created event
+        // New message created event — this is now the in-flight message to resume.
+        this.activeMessageId = (message as any).messageId;
         this.emit('messageCreated', {
           messageId: (message as any).messageId,
           role: (message as any).role
         });
         break;
-      case 'thread_info':
-        // Thread information
+      case 'thread_info': {
+        // Thread information. Persist the thread id so a reconnect during the FIRST
+        // streamed reply (before any 'connected' carried currentThreadId) still sends
+        // thread_id — required to scope the resume read (§6a item 2.5).
+        const info = (message.data || message) as { threadId?: string; thread_id?: string };
+        if (info.threadId || info.thread_id) {
+          this.activeThreadId = (info.threadId ?? info.thread_id) as string;
+        }
         this.emit('threadInfo', message.data || message);
         break;
+      }
       case 'thread_history':
         // Historical messages for the current thread
         this.emit('threadHistory', {
@@ -526,9 +545,7 @@ export class RagwallaWebSocket {
           toolTitle: (message as any).toolTitle,
           toolCallId: (message as any).toolCallId,
           toolType: (message as any).toolType,
-          serverName: (message as any).serverName,
-          _event_id: (message as any)._event_id,
-          _replay: (message as any)._replay
+          serverName: (message as any).serverName
         });
         break;
       case 'tool_complete':
@@ -536,9 +553,7 @@ export class RagwallaWebSocket {
           toolName: (message as any).toolName,
           toolTitle: (message as any).toolTitle,
           toolCallId: (message as any).toolCallId,
-          toolType: (message as any).toolType,
-          _event_id: (message as any)._event_id,
-          _replay: (message as any)._replay
+          toolType: (message as any).toolType
         });
         break;
       case 'status':
@@ -552,9 +567,7 @@ export class RagwallaWebSocket {
           toolType: (message as any).toolType,
           serverName: (message as any).serverName,
           progress: (message as any).progress,
-          total: (message as any).total,
-          _event_id: (message as any)._event_id,
-          _replay: (message as any)._replay
+          total: (message as any).total
         });
         break;
       case 'token_usage':
@@ -570,8 +583,53 @@ export class RagwallaWebSocket {
         this.emit('continueRunResult', message.data || message);
         break;
       case 'run_cancelled':
+        // Turn ended without a 'complete' — drop the in-flight id so the next reconnect
+        // does not try to resume a finished message (§6a item 2).
+        this.activeMessageId = null;
         this.emit('runCancelled', message.data || message);
         break;
+      case 'resume': {
+        // Reconnect resume (§6a item 4): the worker's snapshot of the in-flight bubble's
+        // current visible text. The consumer replaces the bubble body with `content`.
+        const resumeData = (message.data || message) as { messageId?: string; content?: string };
+        this.emit('resume', {
+          messageId: resumeData.messageId,
+          content: resumeData.content
+        });
+        break;
+      }
+      case 'run_state': {
+        // Reconnect run status (§6a item 4): the run's current status on this connection.
+        const stateData = (message.data || message) as {
+          runId?: string;
+          runStatus?: string;
+          activeTool?: unknown;
+        };
+        // A terminal run has no in-flight message to resume; clear the id so a later
+        // reconnect does not resume a finished message (§6a item 2). Uses the shared
+        // terminal set so it cannot drift from the worker.
+        if (isTerminalRunStatus(stateData.runStatus)) {
+          this.activeMessageId = null;
+        }
+        this.emit('runState', {
+          runId: stateData.runId,
+          runStatus: stateData.runStatus,
+          activeTool: stateData.activeTool ?? null
+        });
+        // Compatibility: existing consumers (e.g. Studio's restore UI) listen for
+        // 'runResumed' (emitted from the 'connected' frame's activeRunId). run_state
+        // supersedes it; re-emit runResumed for a NON-terminal run_state so those
+        // consumers keep working without migration. runResumed is deprecated in favor
+        // of runState (the richer superset: adds activeTool + terminal statuses).
+        if (!isTerminalRunStatus(stateData.runStatus)) {
+          this.emit('runResumed', {
+            runId: stateData.runId,
+            status: stateData.runStatus,
+            threadId: this.activeThreadId
+          });
+        }
+        break;
+      }
       case 'error':
         this.emit('error', message.data || { error: message.content });
         break;
