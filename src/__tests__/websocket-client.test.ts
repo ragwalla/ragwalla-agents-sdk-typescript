@@ -185,13 +185,35 @@ describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
     expect(url.searchParams.get('resume_message_id')).toBe('msg_9');
   });
 
-  it('INVARIANT: an in-flight id without a known thread_id throws rather than sending an unscoped resume', async () => {
+  it('INVARIANT: an in-flight id without a known thread_id sends NO resume_message_id, and reconnect still proceeds', async () => {
     const client = newClient();
-    await connectOpen(client); // no thread_info / connected → activeThreadId stays null
+    await connectOpen(client); // no thread_info / connected, no explicit threadId → activeThreadId null
     FakeWebSocket.last.frame({ type: 'message_created', messageId: 'msg_1' });
 
-    await expect(client.connect('agent', 'conn', 'tok')).rejects.toThrow(
-      /resume_message_id must always be sent with thread_id/,
-    );
+    // The gate withholds resume_message_id (it would be unscoped without thread_id) and the
+    // reconnect proceeds normally — it does NOT throw inside connect() (which would strand
+    // the auto-reconnect path with no retry).
+    const url = reconnectUrl(client);
+    expect(url.searchParams.has('resume_message_id')).toBe(false);
+    expect(url.searchParams.has('thread_id')).toBe(false);
+  });
+
+  it('an explicit threadId persists for reconnect even before any server frame arrives', async () => {
+    // Drop after `open` but before connected/thread_info: the reconnect must still carry
+    // the thread the caller named, or the worker loses history + can't resume.
+    const client = newClient();
+    await connectOpen(client, { threadId: 'thr_explicit' });
+
+    expect(reconnectUrl(client).searchParams.get('thread_id')).toBe('thr_explicit');
+  });
+
+  it('explicit threadId + in-flight message → reconnect carries thread_id AND resume_message_id without a thread_info frame', async () => {
+    const client = newClient();
+    await connectOpen(client, { threadId: 'thr_explicit' });
+    FakeWebSocket.last.frame({ type: 'message_created', messageId: 'msg_1' }); // no thread_info first
+
+    const url = reconnectUrl(client);
+    expect(url.searchParams.get('thread_id')).toBe('thr_explicit');
+    expect(url.searchParams.get('resume_message_id')).toBe('msg_1');
   });
 });

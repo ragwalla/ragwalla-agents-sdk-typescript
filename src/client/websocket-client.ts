@@ -154,6 +154,14 @@ export class RagwallaWebSocket {
     this.lastConnectAgentId = agentId;
     this.lastConnectConnectionId = connectionId;
     this.lastConnectToken = token;
+    // Persist an explicitly-provided thread id immediately. The auto-reconnect path
+    // (closeHandler) re-invokes connect() WITHOUT the threadId arg and relies on
+    // activeThreadId; the worker's connected/thread_info frames also set it, but if the
+    // socket drops after `open` and before those arrive, the thread would be lost on
+    // reconnect (no history, no run_state/resume). Persisting here closes that window.
+    if (threadId) {
+      this.activeThreadId = threadId;
+    }
     // Prefer explicit threadId arg; fall back to activeThreadId from prior connected message
     const effectiveThreadId = threadId ?? this.activeThreadId ?? undefined;
 
@@ -164,18 +172,13 @@ export class RagwallaWebSocket {
     if (effectiveThreadId) {
       params.set('thread_id', effectiveThreadId);
     }
-    // Resume the in-flight message after a drop (§6a item 3). The worker's resume read
-    // is thread-scoped (§3): resume_message_id is meaningless — and silently ignored
-    // server-side — without thread_id. activeMessageId is only ever set after a
-    // thread_info/connected frame populated activeThreadId (§6a item 2.5), so the two
-    // travel together; this asserts that invariant rather than failing silently.
-    if (this.activeMessageId) {
-      if (!effectiveThreadId) {
-        throw new Error(
-          'Cannot build resume request: activeMessageId is set but no thread_id is known. ' +
-          'resume_message_id must always be sent with thread_id (the worker resume read is thread-scoped).'
-        );
-      }
+    // Resume the in-flight message after a drop (§6a item 3). Gate on effectiveThreadId:
+    // the worker's resume read is thread-scoped (§3), so resume_message_id is meaningless
+    // without thread_id. Gating makes that invariant hold BY CONSTRUCTION — the SDK can
+    // never emit an unscoped resume id — and an (unexpected) unknown-thread state degrades
+    // to an ordinary reconnect (fresh history reconciles) instead of throwing inside
+    // connect(), which on the auto-reconnect path would strand the client with no retry.
+    if (this.activeMessageId && effectiveThreadId) {
       params.set('resume_message_id', this.activeMessageId);
     }
     const url = `${this.baseURL}/agents/${agentId}/${connectionId}?${params.toString()}`;
