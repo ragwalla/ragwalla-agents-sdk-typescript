@@ -9,39 +9,151 @@ interface UniversalWebSocket {
   removeEventListener(type: string, listener: (event: any) => void): void;
 }
 
+type UniversalWebSocketListener = (event: any) => void;
+
+interface WorkersWebSocket extends UniversalWebSocket {
+  accept(): void;
+}
+
+function isWorkersRuntime(): boolean {
+  return typeof (globalThis as any).WebSocketPair !== 'undefined';
+}
+
+function toWorkersFetchURL(url: string): string {
+  return url.replace(/^wss:\/\//i, 'https://').replace(/^ws:\/\//i, 'http://');
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function createWorkersSocket(url: string): UniversalWebSocket {
+  const httpUrl = toWorkersFetchURL(url);
+  const listeners: Record<string, Set<UniversalWebSocketListener>> = {
+    open: new Set(),
+    message: new Set(),
+    close: new Set(),
+    error: new Set(),
+  };
+
+  const dispatch = (type: string, event: any): void => {
+    for (const listener of listeners[type] ?? []) {
+      try {
+        listener(event);
+      } catch {
+        // Match browser EventTarget behavior: one listener must not block others.
+      }
+    }
+  };
+
+  let socket: WorkersWebSocket | null = null;
+  let closedEarly = false;
+
+  (async () => {
+    let response: Response;
+    try {
+      response = await fetch(httpUrl, { headers: { Upgrade: 'websocket' } });
+    } catch (error) {
+      dispatch('error', { message: errorMessage(error) });
+      dispatch('close', { code: 1006, reason: 'fetch failed', wasClean: false });
+      return;
+    }
+
+    const upgradedSocket = (response as Response & { webSocket?: WorkersWebSocket }).webSocket;
+    if (response.status !== 101 || !upgradedSocket) {
+      const status = `HTTP ${response.status}`;
+      dispatch('error', {
+        message: response.status === 101
+          ? 'expected 101 upgrade with webSocket'
+          : `expected 101 upgrade, got ${status}`,
+      });
+      dispatch('close', {
+        code: 1006,
+        reason: upgradedSocket ? `unexpected status (${status})` : `no webSocket (${status})`,
+        wasClean: false,
+      });
+      return;
+    }
+
+    try {
+      upgradedSocket.accept();
+    } catch (error) {
+      dispatch('error', { message: errorMessage(error) });
+      dispatch('close', { code: 1006, reason: 'accept failed', wasClean: false });
+      return;
+    }
+
+    socket = upgradedSocket;
+    if (closedEarly) {
+      try {
+        upgradedSocket.close();
+      } catch {
+        // Ignore close errors during early shutdown.
+      }
+      return;
+    }
+
+    upgradedSocket.addEventListener('message', (event: any) => dispatch('message', event));
+    upgradedSocket.addEventListener('close', (event: any) => dispatch('close', event));
+    upgradedSocket.addEventListener('error', (event: any) => dispatch('error', event));
+
+    dispatch('open', {});
+  })();
+
+  return {
+    send: (data: string) => {
+      if (socket) {
+        socket.send(data);
+      }
+    },
+    close: () => {
+      closedEarly = true;
+      if (socket) {
+        try {
+          socket.close();
+        } catch {
+          // Ignore close errors to match browser WebSocket semantics.
+        }
+      }
+    },
+    get readyState() {
+      if (socket) {
+        return socket.readyState;
+      }
+      return closedEarly ? 3 : 0;
+    },
+    addEventListener: (type: string, listener: UniversalWebSocketListener) => {
+      if (!listeners[type]) {
+        listeners[type] = new Set();
+      }
+      listeners[type].add(listener);
+    },
+    removeEventListener: (type: string, listener: UniversalWebSocketListener) => {
+      listeners[type]?.delete(listener);
+    }
+  };
+}
+
 // WebSocket factory function that works in both Node.js and Workers
 function createWebSocket(url: string): UniversalWebSocket {
-  if (typeof WebSocket !== 'undefined') {
-    // Browser/Workers environment
-    return new WebSocket(url) as UniversalWebSocket;
-  } else {
-    // Node.js environment
-    try {
-      const WS = require('ws');
-      const ws = new WS(url);
-      
-      // Adapt Node.js WebSocket to match browser API
-      return {
-        send: (data: string) => ws.send(data),
-        close: () => ws.close(),
-        get readyState() { return ws.readyState; },
-        addEventListener: (type: string, listener: (event: any) => void) => {
-          if (type === 'open') ws.on('open', listener);
-          else if (type === 'message') ws.on('message', (data: any) => listener({ data }));
-          else if (type === 'close') ws.on('close', (code: number, reason: string) => listener({ code, reason }));
-          else if (type === 'error') ws.on('error', listener);
-        },
-        removeEventListener: (type: string, listener: (event: any) => void) => {
-          if (type === 'open') ws.off('open', listener);
-          else if (type === 'message') ws.off('message', listener);
-          else if (type === 'close') ws.off('close', listener);
-          else if (type === 'error') ws.off('error', listener);
-        }
-      };
-    } catch (error) {
-      throw new Error('WebSocket not available in this environment. In Node.js, please install the "ws" package.');
-    }
+  if (isWorkersRuntime()) {
+    return createWorkersSocket(url);
   }
+
+  // Everywhere else — browsers, Deno, Bun, React Native, and Node >= 22 — exposes the
+  // standard global WebSocket (WHATWG: CONNECTING -> 'open' -> OPEN). One path serves them
+  // all; no Node-only `ws` dependency, so the browser/worker bundles stay clean.
+  if (typeof WebSocket !== 'undefined') {
+    return new WebSocket(url) as UniversalWebSocket;
+  }
+
+  // No global WebSocket: Node < 22 without a polyfill, or a runtime with no outbound
+  // WebSocket. Fail loud rather than hang — there is nothing to connect with.
+  throw new Error(
+    'No global WebSocket is available in this runtime. The Ragwalla SDK requires a standard ' +
+    'WebSocket (browsers, Cloudflare Workers, Deno, Bun, or Node >= 22). On older Node, ' +
+    'upgrade to Node 22+ or assign a WebSocket implementation to globalThis.WebSocket.'
+  );
 }
 
 export interface WebSocketConfig {

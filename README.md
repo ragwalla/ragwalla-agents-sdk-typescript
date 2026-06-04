@@ -919,7 +919,7 @@ await ws.connect(agentId, 'main', token);
 
 - Import from `@ragwalla/agents-sdk/workers` instead of the main package
 - Use `env` bindings for environment variables instead of `process.env`
-- WebSocket uses native Workers WebSocket API instead of the Node.js `ws` package
+- Outbound WebSocket uses Workers `fetch()` with an Upgrade request instead of the Node.js `ws` package
 - Optimized build excludes Node.js-specific dependencies
 
 ## Examples

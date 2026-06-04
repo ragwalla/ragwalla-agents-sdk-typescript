@@ -7,9 +7,9 @@ import { RagwallaWebSocket } from '../client/websocket-client';
  * thread_id invariant), activeThreadId persistence from thread_info, and the new
  * resume / run_state inbound frames (+ runResumed compatibility).
  *
- * The client builds the socket via a global `WebSocket` (Node 18+/Workers) or the `ws`
- * package. We install a fake global WebSocket so frames can be driven synchronously and
- * the (re)connect URL inspected without a network.
+ * The browser path builds the socket via a global `WebSocket`; the Workers path uses
+ * fetch() with an Upgrade request. These tests install fakes so frames can be driven
+ * synchronously and the (re)connect URL inspected without a network.
  */
 
 type Handler = (event: any) => void;
@@ -38,12 +38,46 @@ class FakeWebSocket {
   frame(obj: unknown): void { this.fire('message', { data: JSON.stringify(obj) }); }
 }
 
+class FakeWorkersWebSocket {
+  readyState = 0; // CONNECTING until accept()
+  accepted = false;
+  closed = false;
+  sent: string[] = [];
+  private handlers: Record<string, Handler[]> = {};
+
+  accept(): void {
+    this.accepted = true;
+    this.readyState = 1;
+  }
+  addEventListener(type: string, fn: Handler): void { (this.handlers[type] ||= []).push(fn); }
+  removeEventListener(type: string, fn: Handler): void {
+    this.handlers[type] = (this.handlers[type] || []).filter((h) => h !== fn);
+  }
+  send(data: string): void { this.sent.push(data); }
+  close(): void {
+    this.closed = true;
+    this.readyState = 3;
+  }
+  fire(type: string, event: any): void { (this.handlers[type] || []).forEach((h) => h(event)); }
+}
+
 const BASE = 'wss://api.example.com/v1';
 
 let originalWebSocket: unknown;
+let originalWebSocketPair: unknown;
+let originalFetch: unknown;
 
 function newClient(): RagwallaWebSocket {
   return new RagwallaWebSocket({ baseURL: BASE, reconnectAttempts: 0 });
+}
+
+function installWorkersRuntime(fetchMock: unknown): void {
+  (globalThis as any).WebSocketPair = function WebSocketPair() {};
+  (globalThis as any).fetch = fetchMock;
+}
+
+async function flushAsyncUpgrade(): Promise<void> {
+  await new Promise<void>((resolve) => setImmediate(resolve));
 }
 
 /** Connect and resolve by firing the socket's `open` event. */
@@ -69,11 +103,120 @@ function reconnectUrl(client: RagwallaWebSocket): URL {
 beforeEach(() => {
   FakeWebSocket.reset();
   originalWebSocket = (globalThis as any).WebSocket;
+  originalWebSocketPair = (globalThis as any).WebSocketPair;
+  originalFetch = (globalThis as any).fetch;
   (globalThis as any).WebSocket = FakeWebSocket as unknown as typeof WebSocket;
 });
 
 afterEach(() => {
   (globalThis as any).WebSocket = originalWebSocket;
+  if (originalWebSocketPair === undefined) {
+    delete (globalThis as any).WebSocketPair;
+  } else {
+    (globalThis as any).WebSocketPair = originalWebSocketPair;
+  }
+  if (originalFetch === undefined) {
+    delete (globalThis as any).fetch;
+  } else {
+    (globalThis as any).fetch = originalFetch;
+  }
+});
+
+describe('Cloudflare Workers WebSocket transport', () => {
+  it('uses fetch Upgrade with an https URL, accepts the socket, and synthesizes open', async () => {
+    const workersSocket = new FakeWorkersWebSocket();
+    const fetchMock = jest.fn(async (_url: string, _init?: RequestInit) => ({ status: 101, webSocket: workersSocket }));
+    const webSocketConstructor = jest.fn();
+    installWorkersRuntime(fetchMock);
+    (globalThis as any).WebSocket = webSocketConstructor;
+
+    const client = newClient();
+    const connected = jest.fn();
+    const chunk = jest.fn();
+    client.on('connected', connected);
+    client.on('chunk', chunk);
+
+    const connectPromise = client.connect('agent', 'conn', 'tok');
+    expect(client.isConnected()).toBe(false);
+    await connectPromise;
+
+    expect(webSocketConstructor).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [fetchUrl, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const parsedUrl = new URL(fetchUrl);
+    expect(parsedUrl.protocol).toBe('https:');
+    expect(parsedUrl.pathname).toBe('/v1/agents/agent/conn');
+    expect(parsedUrl.searchParams.get('token')).toBe('tok');
+    expect(parsedUrl.searchParams.get('continuation_mode')).toBe('auto');
+    expect((init.headers as Record<string, string>).Upgrade).toBe('websocket');
+    expect(workersSocket.accepted).toBe(true);
+    expect(connected).toHaveBeenCalledWith({});
+    expect(client.isConnected()).toBe(true);
+
+    workersSocket.fire('message', {
+      data: JSON.stringify({ type: 'chunk', messageId: 'msg_1', content: 'hello' })
+    });
+    expect(chunk).toHaveBeenCalledWith({ messageId: 'msg_1', content: 'hello' });
+
+    client.send({ type: 'ping' });
+    expect(workersSocket.sent).toEqual([JSON.stringify({ type: 'ping' })]);
+  });
+
+  it('emits error and close when the Workers upgrade fetch rejects', async () => {
+    const fetchMock = jest.fn(async (_url: string, _init?: RequestInit) => {
+      throw new Error('upgrade failed');
+    });
+    installWorkersRuntime(fetchMock);
+
+    const client = newClient();
+    const error = jest.fn();
+    const disconnected = jest.fn();
+    client.on('error', error);
+    client.on('disconnected', disconnected);
+
+    await expect(client.connect('agent', 'conn', 'tok')).rejects.toThrow('upgrade failed');
+    expect(error).toHaveBeenCalledWith({ error: 'upgrade failed' });
+    expect(disconnected).toHaveBeenCalledWith({ code: 1006, reason: 'fetch failed' });
+  });
+
+  it('emits error and close when the Workers upgrade response has no WebSocket', async () => {
+    const fetchMock = jest.fn(async (_url: string, _init?: RequestInit) => ({ status: 200 }));
+    installWorkersRuntime(fetchMock);
+
+    const client = newClient();
+    const disconnected = jest.fn();
+    client.on('disconnected', disconnected);
+
+    await expect(client.connect('agent', 'conn', 'tok')).rejects.toThrow('expected 101 upgrade, got HTTP 200');
+    expect(disconnected).toHaveBeenCalledWith({ code: 1006, reason: 'no webSocket (HTTP 200)' });
+  });
+
+  it('closes an upgraded Workers socket without opening when disconnected before fetch resolves', async () => {
+    let resolveFetch!: (response: { status: number; webSocket: FakeWorkersWebSocket }) => void;
+    const fetchMock = jest.fn((_url: string, _init?: RequestInit) => new Promise<{ status: number; webSocket: FakeWorkersWebSocket }>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    installWorkersRuntime(fetchMock);
+
+    const client = newClient();
+    const connected = jest.fn();
+    const disconnected = jest.fn();
+    client.on('connected', connected);
+    client.on('disconnected', disconnected);
+
+    const connectPromise = client.connect('agent', 'conn', 'tok');
+    connectPromise.catch(() => {});
+    client.disconnect();
+
+    const workersSocket = new FakeWorkersWebSocket();
+    resolveFetch({ status: 101, webSocket: workersSocket });
+    await flushAsyncUpgrade();
+
+    expect(workersSocket.accepted).toBe(true);
+    expect(workersSocket.closed).toBe(true);
+    expect(connected).not.toHaveBeenCalled();
+    expect(disconnected).not.toHaveBeenCalled();
+  });
 });
 
 describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
