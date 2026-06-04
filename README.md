@@ -8,6 +8,8 @@ The official TypeScript SDK for the Ragwalla Agents API. Build powerful AI appli
 npm install @ragwalla/agents-sdk
 ```
 
+**Requirements:** a runtime with a standard global `WebSocket` — browsers, Cloudflare Workers, Deno, Bun, or **Node.js ≥ 22**. (Older Node works only if you assign a `WebSocket` implementation to `globalThis.WebSocket`.) The SDK no longer depends on the `ws` package.
+
 ## Quick Start
 
 ```typescript

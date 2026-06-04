@@ -23,6 +23,7 @@
     "build:workers": "tsc --project tsconfig.workers.json --outDir dist",
     "dev": "tsc --watch",
     "test": "jest --passWithNoTests",
+    "test:workers": "vitest run --config vitest.workers.config.ts",
     "lint": "eslint src/**/*.ts",
     "prepublishOnly": "npm run build",
     "test-client": "ts-node test-client.ts",
