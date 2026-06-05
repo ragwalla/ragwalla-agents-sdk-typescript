@@ -40,8 +40,10 @@ function createWorkersSocket(url: string): UniversalWebSocket {
     for (const listener of listeners[type] ?? []) {
       try {
         listener(event);
-      } catch {
-        // Match browser EventTarget behavior: one listener must not block others.
+      } catch (error) {
+        // One listener must not block others (browser EventTarget semantics), but the
+        // error is surfaced rather than swallowed — matching emit().
+        console.error('Error in WebSocket transport listener:', error);
       }
     }
   };
@@ -102,9 +104,13 @@ function createWorkersSocket(url: string): UniversalWebSocket {
 
   return {
     send: (data: string) => {
-      if (socket) {
-        socket.send(data);
+      if (!socket) {
+        // Unreachable via the public API — every send path gates on readyState === 1,
+        // which this wrapper reports only once `socket` is set. Fail loud if that
+        // invariant is ever broken, rather than silently dropping the message.
+        throw new Error('Cannot send: the Workers WebSocket upgrade has not completed');
       }
+      socket.send(data);
     },
     close: () => {
       closedEarly = true;
@@ -618,9 +624,9 @@ export class RagwallaWebSocket {
         // Thread information. Persist the thread id so a reconnect during the FIRST
         // streamed reply (before any 'connected' carried currentThreadId) still sends
         // thread_id — required to scope the resume read (§6a item 2.5).
-        const info = (message.data || message) as { threadId?: string; thread_id?: string };
-        if (info.threadId || info.thread_id) {
-          this.activeThreadId = (info.threadId ?? info.thread_id) as string;
+        const info = (message.data || message) as { threadId?: string };
+        if (info.threadId) {
+          this.activeThreadId = info.threadId;
         }
         this.emit('threadInfo', message.data || message);
         break;
