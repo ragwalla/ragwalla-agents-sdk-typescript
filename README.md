@@ -8,6 +8,8 @@ The official TypeScript SDK for the Ragwalla Agents API. Build powerful AI appli
 npm install @ragwalla/agents-sdk
 ```
 
+**Requirements:** a runtime with a standard global `WebSocket` — browsers, Cloudflare Workers, Deno, Bun, or **Node.js ≥ 22**. (Older Node works only if you assign a `WebSocket` implementation to `globalThis.WebSocket`.) The SDK no longer depends on the `ws` package.
+
 ## Quick Start
 
 ```typescript
@@ -351,8 +353,7 @@ The WebSocket client emits the following events:
 - `threadInfo` - Thread information (`{ threadId, assistantId, isNewThread }`)
 - `typing` - Typing indicator (`{ isTyping }`)
 - `toolUse` - Tool usage information (`{ tools }`)
-- `runState` - On reconnect, the current run status for this connection (`{ runId, runStatus, activeTool }`). `runStatus` is a `RunStatus` (may be terminal if the run finished while disconnected); `activeTool` is `null` in v1.
-- `runResumed` - **Deprecated** — superseded by `runState`. Still emitted from the `connected` frame's active run and from a non-terminal `runState` (`{ runId, status, threadId }`) for existing consumers; prefer `runState` (richer: adds `activeTool` and terminal statuses).
+- `runState` - On reconnect, the current run status for this connection (`{ runId, runStatus, activeTool }`). `runStatus` is a `RunStatus` (may be terminal if the run finished while disconnected); `activeTool` is `null` in v1. This is the single reconnect-status event (the former `runResumed` has been removed).
 - `runPaused` - Invocation paused awaiting manual resume (`{ runId, threadId, reason, stats })`
 - `runCancelled` - Run was cancelled (`{ runId }`)
 - `continuationModeUpdated` - Server acknowledged continuation mode change
@@ -919,7 +920,7 @@ await ws.connect(agentId, 'main', token);
 
 - Import from `@ragwalla/agents-sdk/workers` instead of the main package
 - Use `env` bindings for environment variables instead of `process.env`
-- WebSocket uses native Workers WebSocket API instead of the Node.js `ws` package
+- Outbound WebSocket uses Workers `fetch()` with an Upgrade request instead of the Node.js `ws` package
 - Optimized build excludes Node.js-specific dependencies
 
 ## Examples
