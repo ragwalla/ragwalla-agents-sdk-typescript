@@ -598,12 +598,6 @@ export class RagwallaWebSocket {
           content: (message as any).content,
           messageId: (message as any).messageId
         });
-        // Also emit as message for compatibility
-        this.emit('message', {
-          content: (message as any).content,
-          role: 'assistant',
-          messageId: (message as any).messageId
-        });
         break;
       case 'complete':
         // Message completion event — the in-flight message is done.
@@ -728,18 +722,6 @@ export class RagwallaWebSocket {
           runStatus: stateData.runStatus,
           activeTool: stateData.activeTool ?? null
         });
-        // Compatibility: existing consumers (e.g. Studio's restore UI) listen for
-        // 'runResumed' (emitted from the 'connected' frame's activeRunId). run_state
-        // supersedes it; re-emit runResumed for a NON-terminal run_state so those
-        // consumers keep working without migration. runResumed is deprecated in favor
-        // of runState (the richer superset: adds activeTool + terminal statuses).
-        if (!isTerminalRunStatus(stateData.runStatus)) {
-          this.emit('runResumed', {
-            runId: stateData.runId,
-            status: stateData.runStatus,
-            threadId: this.activeThreadId
-          });
-        }
         break;
       }
       case 'error':
@@ -753,14 +735,6 @@ export class RagwallaWebSocket {
           this.activeThreadId = connMsg.currentThreadId;
         }
         this.emit('connectionStatus', connMsg);
-        // If server reports an in-progress run, emit runResumed so UI can restore state
-        if (connMsg.activeRunId) {
-          this.emit('runResumed', {
-            runId: connMsg.activeRunId,
-            status: connMsg.activeRunStatus,
-            threadId: connMsg.currentThreadId ?? this.activeThreadId
-          });
-        }
         break;
       }
       case 'cf_agent_state':

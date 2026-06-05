@@ -5,7 +5,7 @@ import { RagwallaWebSocket } from '../client/websocket-client';
  * Tests for the reconnect/resume client protocol (RECONNECT_RESUME_SPEC §6a):
  * activeMessageId lifecycle, resume_message_id on reconnect (and its never-without-
  * thread_id invariant), activeThreadId persistence from thread_info, and the new
- * resume / run_state inbound frames (+ runResumed compatibility).
+ * resume / run_state inbound frames.
  *
  * The browser path builds the socket via a global `WebSocket`; the Workers path uses
  * fetch() with an Upgrade request. These tests install fakes so frames can be driven
@@ -262,7 +262,7 @@ describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
     expect(url.searchParams.has('resume_message_id')).toBe(false);
   });
 
-  it('terminal run_state clears the in-flight id and does not re-emit runResumed', async () => {
+  it('terminal run_state emits runState and clears the in-flight id', async () => {
     const client = newClient();
     await connectOpen(client);
     FakeWebSocket.last.frame({ type: 'thread_info', threadId: 'thr_1' });
@@ -271,12 +271,12 @@ describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
     const runState = jest.fn();
     const runResumed = jest.fn();
     client.on('runState', runState);
-    client.on('runResumed', runResumed);
+    client.on('runResumed', runResumed); // removed event — must never fire
 
     FakeWebSocket.last.frame({ type: 'run_state', runId: 'run_1', runStatus: 'completed', activeTool: null });
 
     expect(runState).toHaveBeenCalledWith({ runId: 'run_1', runStatus: 'completed', activeTool: null });
-    expect(runResumed).not.toHaveBeenCalled(); // terminal → no compat re-emit
+    expect(runResumed).not.toHaveBeenCalled();
     expect(reconnectUrl(client).searchParams.has('resume_message_id')).toBe(false); // cleared
   });
 
@@ -290,7 +290,7 @@ describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
     expect(reconnectUrl(client).searchParams.has('resume_message_id')).toBe(false);
   });
 
-  it('non-terminal run_state emits runState AND runResumed (compat), threaded by activeThreadId', async () => {
+  it('non-terminal run_state emits runState only (the legacy runResumed is gone)', async () => {
     const client = newClient();
     await connectOpen(client);
     FakeWebSocket.last.frame({ type: 'thread_info', threadId: 'thr_1' });
@@ -298,12 +298,12 @@ describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
     const runState = jest.fn();
     const runResumed = jest.fn();
     client.on('runState', runState);
-    client.on('runResumed', runResumed);
+    client.on('runResumed', runResumed); // removed event — must never fire
 
     FakeWebSocket.last.frame({ type: 'run_state', runId: 'run_1', runStatus: 'in_progress', activeTool: null });
 
     expect(runState).toHaveBeenCalledWith({ runId: 'run_1', runStatus: 'in_progress', activeTool: null });
-    expect(runResumed).toHaveBeenCalledWith({ runId: 'run_1', status: 'in_progress', threadId: 'thr_1' });
+    expect(runResumed).not.toHaveBeenCalled();
   });
 
   it("resume frame is forwarded as a 'resume' event with messageId + content", async () => {
