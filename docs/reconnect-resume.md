@@ -97,12 +97,12 @@ connected → threadInfo → threadHistory → runState → messageCreated* → 
 `*` only when a run was in flight. A thread with **no** active run reconnects with just
 history (no `runState`/`resume`, no ghost bubble).
 
-### `runResumed` is deprecated
+### `runState` is the single reconnect-status event
 
-The SDK still emits `runResumed` (from the `connected` frame's active run, and from a
-non-terminal `runState`) for backward compatibility. Prefer **`runState`** — it is the
-superset: it adds `activeTool` and reports terminal statuses too. Migrate listeners from
-`runResumed` to `runState`.
+An earlier `runResumed` event has been **removed**. `runState` is now the one event for
+the run's status on reconnect — it carries `runId`, `runStatus` (any `RunStatus`, including
+terminal), and `activeTool`. If you previously listened for `runResumed`, listen for
+`runState` instead.
 
 ---
 
@@ -267,5 +267,5 @@ connect();
 - **`resume_message_id` requires `thread_id`** → never send it alone (it would be ignored).
 - **Reconnect order** → history → `run_state` → `message_created` → `resume` → live chunks.
 - **Clear the in-flight id** → on `complete`, `run_cancelled`, or a terminal `run_state`.
-- **SDK** → listen for `resume` + `runState`; reconnect parameters are automatic; `runResumed`
-  is deprecated in favor of `runState`.
+- **SDK** → listen for `resume` + `runState` (the single reconnect-status event);
+  reconnect parameters are automatic.
