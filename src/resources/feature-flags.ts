@@ -1,5 +1,5 @@
-import { HTTPClient } from '../client/http-client';
-import { ResolveFlagsRequest, ResolveFlagsResponse } from '../types';
+import { HTTPClient } from '../client/http-client.js';
+import { ResolveFlagsRequest, ResolveFlagsResponse } from '../types/index.js';
 
 export class FeatureFlagsResource {
   constructor(private client: HTTPClient) {}

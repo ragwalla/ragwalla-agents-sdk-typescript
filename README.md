@@ -360,6 +360,7 @@ The WebSocket client emits the following events:
 - `continueRunResult` - Response to a `continue_run` request (`{ status, runId, error? }`)
 
 #### Other Events
+- `rawFrame` / `frame` - Every inbound Ragwalla frame before SDK normalization. Durable Object proxies can relay this object directly to browsers to preserve upstream frame shapes, including future frame types.
 - `status` - Transient status/progress updates (e.g., tool execution progress)
 - `threadHistory` - Thread message history (`{ threadId, messages, messageCount }`)
 - `tokenUsage` - Token usage statistics
@@ -374,6 +375,38 @@ streamed reply — you get a `resume` frame with the message's current text, the
 append subsequent chunks.** See **[docs/reconnect-resume.md](docs/reconnect-resume.md)** for
 the full guide, including how to implement the same protocol without the SDK (raw WebSocket,
 for non-TypeScript clients).
+
+Durable Object proxies should use `rawFrame`/`frame` as the browser data plane and avoid
+reconstructing SDK typed events. If reconnects need fresh short-lived tokens, provide a
+`getReconnectToken` hook and use `sendAsync()` / `sendMessageAsync()` for upstream writes
+that should reconnect before sending or fail before accepting the browser message:
+
+```typescript
+const ws = ragwalla.createWebSocket({
+  getReconnectToken: async ({ agentId }) => {
+    const { token } = await ragwalla.agents.getToken({ agent_id: agentId, expires_in: 300 });
+    return token;
+  }
+});
+
+let browserRelayOpen = true;
+ws.on('rawFrame', (frame) => {
+  if (!browserRelayOpen) return;
+  try {
+    browserSocket.send(JSON.stringify(frame));
+  } catch (error) {
+    browserRelayOpen = false;
+    ws.disconnect();
+    console.error('Browser relay failed', error);
+  }
+});
+
+await ws.connect(agent.id, connectionId, initialToken, threadId);
+await ws.sendAsync(clientFrame);
+```
+
+SDK event listener exceptions are caught and logged, so relay failures must be handled
+inside the `rawFrame` listener instead of relying on thrown errors for proxy control flow.
 
 ### Streaming Response Example
 

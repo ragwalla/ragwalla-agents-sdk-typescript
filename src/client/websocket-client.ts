@@ -1,4 +1,4 @@
-import { WebSocketMessage, ChatMessage, TruncationStrategy, isTerminalRunStatus } from '../types';
+import { WebSocketMessage, ChatMessage, TruncationStrategy, isTerminalRunStatus } from '../types/index.js';
 
 // Universal WebSocket interface
 interface UniversalWebSocket {
@@ -168,12 +168,34 @@ export interface WebSocketConfig {
   reconnectDelay?: number;
   debug?: boolean; // Enable debug logging
   continuationMode?: 'auto' | 'manual';
+  /**
+   * Optional hook used before SDK-driven reconnects. Durable Object proxies can
+   * mint a fresh short-lived Ragwalla WebSocket token here instead of reusing the
+   * token from the original connect() call.
+   */
+  getReconnectToken?: WebSocketReconnectTokenProvider;
   truncationStrategy?: TruncationStrategy;
   /** Max chars per KB search result chunk sent to the LLM */
   maxKbCharsPerChunk?: number;
   /** When true, the agent will embed the current user message and merge semantically relevant past messages before applying truncation */
   semanticAugmentation?: boolean;
 }
+
+export type WebSocketReconnectReason = 'auto_reconnect' | 'send';
+
+export interface WebSocketReconnectContext {
+  agentId: string;
+  connectionId: string;
+  threadId?: string;
+  resumeMessageId?: string;
+  previousToken?: string;
+  attempt: number;
+  reason: WebSocketReconnectReason;
+}
+
+export type WebSocketReconnectTokenProvider = (
+  context: WebSocketReconnectContext
+) => string | Promise<string>;
 
 export class RagwallaWebSocket {
   private ws: UniversalWebSocket | null = null;
@@ -182,10 +204,18 @@ export class RagwallaWebSocket {
   private reconnectDelay: number;
   private currentAttempts = 0;
   private isManuallyDisconnected = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectInFlight: Promise<void> | null = null;
+  private reconnectGeneration = 0;
+  private connectAttemptId = 0;
+  private activeConnectAttemptId: number | null = null;
+  private activeConnectPromise: Promise<void> | null = null;
+  private activeConnectReject: ((error: Error) => void) | null = null;
   private listeners: Map<string, Set<Function>> = new Map();
   private eventHandlers: Map<string, (event: any) => void> = new Map();
   private debug: boolean;
   private continuationMode: 'auto' | 'manual';
+  private getReconnectToken?: WebSocketReconnectTokenProvider;
   private truncationStrategy?: TruncationStrategy;
   private maxKbCharsPerChunk?: number;
   private semanticAugmentation?: boolean;
@@ -204,6 +234,7 @@ export class RagwallaWebSocket {
     this.reconnectDelay = config.reconnectDelay ?? 1000;
     this.debug = config.debug || false;
     this.continuationMode = config.continuationMode === 'manual' ? 'manual' : 'auto';
+    this.getReconnectToken = config.getReconnectToken;
     this.truncationStrategy = config.truncationStrategy;
     this.maxKbCharsPerChunk = config.maxKbCharsPerChunk;
     this.semanticAugmentation = config.semanticAugmentation;
@@ -261,6 +292,217 @@ export class RagwallaWebSocket {
     this.baseURL = wsURL.replace(/\/$/, '');
   }
 
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  private invalidatePendingReconnects(): void {
+    this.reconnectGeneration++;
+    this.reconnectInFlight = null;
+    this.clearReconnectTimer();
+  }
+
+  private removeSocketEventHandlers(socket: UniversalWebSocket): void {
+    this.eventHandlers.forEach((handler, event) => {
+      socket.removeEventListener(event, handler);
+    });
+    this.eventHandlers.clear();
+  }
+
+  private closeCurrentSocket(): void {
+    if (!this.ws) return;
+
+    const socket = this.ws;
+    this.removeSocketEventHandlers(socket);
+    try {
+      socket.close();
+    } catch {
+      // Ignore close errors to match browser WebSocket semantics.
+    }
+    if (this.ws === socket) {
+      this.ws = null;
+    }
+  }
+
+  private cancelActiveConnect(reason: string): void {
+    const rejectActiveConnect = this.activeConnectReject;
+    if (rejectActiveConnect) {
+      rejectActiveConnect(new Error(reason));
+    }
+  }
+
+  private getActiveConnectPromise(): Promise<void> | null {
+    if (this.ws?.readyState === 0 && this.activeConnectPromise) { // 0 = CONNECTING
+      return this.activeConnectPromise;
+    }
+    return null;
+  }
+
+  private resetLogicalSession(threadId?: string): void {
+    this.activeThreadId = threadId ?? null;
+    this.activeMessageId = null;
+  }
+
+  private getStoredConnectionParams(): { agentId: string; connectionId: string } {
+    if (!this.lastConnectAgentId || !this.lastConnectConnectionId) {
+      throw new Error('Cannot reconnect before connect() has been called');
+    }
+    return {
+      agentId: this.lastConnectAgentId,
+      connectionId: this.lastConnectConnectionId,
+    };
+  }
+
+  private async resolveReconnectToken(reason: WebSocketReconnectReason): Promise<string> {
+    const { agentId, connectionId } = this.getStoredConnectionParams();
+    const previousToken = this.lastConnectToken ?? undefined;
+
+    if (this.getReconnectToken) {
+      const token = await this.getReconnectToken({
+        agentId,
+        connectionId,
+        threadId: this.activeThreadId ?? undefined,
+        resumeMessageId: this.activeMessageId ?? undefined,
+        previousToken,
+        attempt: this.currentAttempts,
+        reason,
+      });
+      if (!token) {
+        throw new Error('getReconnectToken returned an empty token');
+      }
+      return token;
+    }
+
+    if (!previousToken) {
+      throw new Error('Cannot reconnect without a token or getReconnectToken hook');
+    }
+    return previousToken;
+  }
+
+  private reconnectWithLatestToken(reason: WebSocketReconnectReason): Promise<void> {
+    if (this.reconnectInFlight) {
+      return this.reconnectInFlight;
+    }
+
+    const { agentId, connectionId } = this.getStoredConnectionParams();
+    const generation = this.reconnectGeneration;
+    const reconnectPromise = (async () => {
+      const token = await this.resolveReconnectToken(reason);
+      if (this.isManuallyDisconnected || generation !== this.reconnectGeneration) {
+        throw new Error('Reconnect cancelled');
+      }
+      this.lastConnectToken = token;
+      await this.connectInternal(agentId, connectionId, token);
+    })();
+
+    let trackedPromise: Promise<void>;
+    trackedPromise = reconnectPromise.finally(() => {
+      if (this.reconnectInFlight === trackedPromise) {
+        this.reconnectInFlight = null;
+      }
+    });
+
+    this.reconnectInFlight = trackedPromise;
+    return trackedPromise;
+  }
+
+  private scheduleReconnect(): void {
+    if (
+      this.isManuallyDisconnected ||
+      this.isConnected() ||
+      this.reconnectTimer ||
+      this.reconnectInFlight ||
+      this.currentAttempts >= this.reconnectAttempts
+    ) {
+      return;
+    }
+
+    const delay = this.reconnectDelay * this.currentAttempts;
+    this.log('info', `Attempting reconnection ${this.currentAttempts + 1}/${this.reconnectAttempts} in ${delay}ms`);
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.isManuallyDisconnected || this.isConnected()) {
+        return;
+      }
+
+      this.currentAttempts++;
+      this.reconnectWithLatestToken('auto_reconnect').catch((error) => {
+        if (
+          this.isManuallyDisconnected ||
+          error?.message === 'Reconnect cancelled' ||
+          error?.message === 'WebSocket connection superseded'
+        ) {
+          return;
+        }
+        this.log('error', 'Reconnection attempt failed', { error });
+        if (this.currentAttempts >= this.reconnectAttempts) {
+          this.log('error', 'All reconnection attempts failed', { attempts: this.currentAttempts });
+          this.emit('reconnectFailed', { attempts: this.currentAttempts });
+        } else {
+          this.scheduleReconnect();
+        }
+      });
+    }, delay);
+  }
+
+  private emitRawFrame(messageText: string): void {
+    const frame = JSON.parse(messageText);
+    this.emit('rawFrame', frame);
+    this.emit('frame', frame);
+  }
+
+  private buildMessagePayload(message: ChatMessage): Record<string, any> {
+    return {
+      type: 'message',
+      content: message.content,
+      role: message.role,
+      timestamp: new Date().toISOString(),
+      ...(message.metadata && { metadata: message.metadata }),
+      ...(this.truncationStrategy && { truncationStrategy: this.truncationStrategy }),
+      ...(this.maxKbCharsPerChunk !== undefined && { maxKbCharsPerChunk: this.maxKbCharsPerChunk }),
+      ...(this.semanticAugmentation !== undefined && { semanticAugmentation: this.semanticAugmentation }),
+    };
+  }
+
+  private sendPayload(payload: any, context: any): void {
+    if (!this.ws || this.ws.readyState !== 1) { // 1 = OPEN
+      this.log('error', 'Cannot send data - WebSocket not connected', {
+        readyState: this.ws?.readyState,
+        data: context
+      });
+      throw new Error('WebSocket is not connected');
+    }
+
+    this.ws.send(JSON.stringify(payload));
+  }
+
+  private async ensureConnectedForSend(): Promise<void> {
+    if (this.isConnected()) {
+      return;
+    }
+    const activeConnect = this.getActiveConnectPromise();
+    if (activeConnect) {
+      await activeConnect;
+      if (this.isConnected()) {
+        return;
+      }
+    }
+    if (this.isManuallyDisconnected) {
+      throw new Error('WebSocket is manually disconnected');
+    }
+
+    this.clearReconnectTimer();
+    await this.reconnectWithLatestToken('send');
+
+    if (!this.isConnected()) {
+      throw new Error('WebSocket is not connected after reconnect');
+    }
+  }
+
   /**
    * Connect to an agent's WebSocket endpoint
    * @param agentId - The agent to connect to
@@ -269,14 +511,24 @@ export class RagwallaWebSocket {
    * @param threadId - Optional Ragwalla thread ID. If provided, resumes that thread. If omitted, a new thread is created on first message.
    */
   async connect(agentId: string, connectionId: string, token: string, threadId?: string): Promise<void> {
+    this.invalidatePendingReconnects();
+    this.cancelActiveConnect('WebSocket connection superseded');
+    this.closeCurrentSocket();
+    this.resetLogicalSession(threadId);
+    this.isManuallyDisconnected = false;
+    return this.connectInternal(agentId, connectionId, token, threadId);
+  }
+
+  private async connectInternal(agentId: string, connectionId: string, token: string, threadId?: string): Promise<void> {
+    this.clearReconnectTimer();
     this.lastConnectAgentId = agentId;
     this.lastConnectConnectionId = connectionId;
     this.lastConnectToken = token;
-    // Persist an explicitly-provided thread id immediately. The auto-reconnect path
-    // (closeHandler) re-invokes connect() WITHOUT the threadId arg and relies on
-    // activeThreadId; the worker's connected/thread_info frames also set it, but if the
-    // socket drops after `open` and before those arrive, the thread would be lost on
-    // reconnect (no history, no run_state/resume). Persisting here closes that window.
+    // Persist an explicitly-provided thread id immediately. Public connect() has
+    // already reset the logical session, while internal reconnect calls preserve
+    // activeThreadId/activeMessageId so resume can be scoped to the current thread.
+    // If the socket drops after `open` and before connected/thread_info arrive, this
+    // keeps reconnect attached to the caller-provided thread.
     if (threadId) {
       this.activeThreadId = threadId;
     }
@@ -309,78 +561,107 @@ export class RagwallaWebSocket {
       continuationMode: this.continuationMode
     });
     
-    return new Promise((resolve, reject) => {
-      this.ws = createWebSocket(url);
-      
-      // Create event handlers that we can later remove
-      const openHandler = () => {
-        this.log('info', 'WebSocket connection opened successfully');
-        this.currentAttempts = 0;
-        this.isManuallyDisconnected = false;
-        this.emit('connected', {});
-        resolve();
-      };
-
-      const messageHandler = (event: any) => {
-        try {
-          const data = event.data || event;
-          const messageText = typeof data === 'string' ? data : data.toString();
-          this.log('info', 'Received WebSocket message', { messageText });
-          
-          const message: WebSocketMessage = JSON.parse(messageText);
-          this.log('info', 'Parsed WebSocket message', { type: message.type, dataKeys: Object.keys(message.data || {}) });
-          this.handleMessage(message);
-        } catch (error) {
-          this.log('error', 'Failed to parse WebSocket message', { error, rawData: event.data });
-          this.emit('error', { error: 'Failed to parse message', data: event.data });
-        }
-      };
-
-      const closeHandler = (event: any) => {
-        const code = event.code || 1000;
-        const reason = event.reason || 'Connection closed';
-        this.log('warn', 'WebSocket connection closed', { code, reason });
-        this.emit('disconnected', { code, reason });
-        
-        if (!this.isManuallyDisconnected && this.currentAttempts < this.reconnectAttempts) {
-          const delay = this.reconnectDelay * this.currentAttempts;
-          this.log('info', `Attempting reconnection ${this.currentAttempts + 1}/${this.reconnectAttempts} in ${delay}ms`);
-
-          setTimeout(() => {
-            this.currentAttempts++;
-            // Use stored params so reconnect carries thread_id + resume_message_id
-            const reconnectAgentId = this.lastConnectAgentId!;
-            const reconnectConnectionId = this.lastConnectConnectionId!;
-            const reconnectToken = this.lastConnectToken!;
-            this.connect(reconnectAgentId, reconnectConnectionId, reconnectToken).catch(() => {
-              if (this.currentAttempts >= this.reconnectAttempts) {
-                this.log('error', 'All reconnection attempts failed', { attempts: this.currentAttempts });
-                this.emit('reconnectFailed', { attempts: this.currentAttempts });
-              }
-            });
-          }, delay);
-        }
-      };
-
-      const errorHandler = (error: any) => {
-        const errorMessage = error.message || error.toString() || 'WebSocket error';
-        this.log('error', 'WebSocket error occurred', { error: errorMessage, fullError: error });
-        this.emit('error', { error: errorMessage });
-        reject(new Error(errorMessage));
-      };
-
-      // Store handlers for cleanup
-      this.eventHandlers.set('open', openHandler);
-      this.eventHandlers.set('message', messageHandler);
-      this.eventHandlers.set('close', closeHandler);
-      this.eventHandlers.set('error', errorHandler);
-
-      // Add event listeners
-      this.ws.addEventListener('open', openHandler);
-      this.ws.addEventListener('message', messageHandler);
-      this.ws.addEventListener('close', closeHandler);
-      this.ws.addEventListener('error', errorHandler);
+    const attemptId = ++this.connectAttemptId;
+    const socket = createWebSocket(url);
+    this.ws = socket;
+    let opened = false;
+    let settled = false;
+    let resolvePromise!: () => void;
+    let rejectPromise!: (error: Error) => void;
+    const connectPromise = new Promise<void>((resolve, reject) => {
+      resolvePromise = resolve;
+      rejectPromise = reject;
     });
+
+    const clearActiveConnect = () => {
+      if (this.activeConnectAttemptId === attemptId) {
+        this.activeConnectAttemptId = null;
+        this.activeConnectPromise = null;
+        this.activeConnectReject = null;
+      }
+    };
+
+    const resolveConnect = () => {
+      if (settled) return;
+      settled = true;
+      clearActiveConnect();
+      resolvePromise();
+    };
+
+    const rejectConnect = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      clearActiveConnect();
+      rejectPromise(error);
+    };
+
+    this.activeConnectAttemptId = attemptId;
+    this.activeConnectPromise = connectPromise;
+    this.activeConnectReject = rejectConnect;
+
+    const isCurrentSocket = () => this.ws === socket;
+
+    // Create event handlers that we can later remove
+    const openHandler = () => {
+      if (!isCurrentSocket()) return;
+      opened = true;
+      this.log('info', 'WebSocket connection opened successfully');
+      this.currentAttempts = 0;
+      this.isManuallyDisconnected = false;
+      this.emit('connected', {});
+      resolveConnect();
+    };
+
+    const messageHandler = (event: any) => {
+      if (!isCurrentSocket()) return;
+      try {
+        const data = event.data || event;
+        const messageText = typeof data === 'string' ? data : data.toString();
+        this.log('info', 'Received WebSocket message', { messageText });
+        
+        this.emitRawFrame(messageText);
+        const message: WebSocketMessage = JSON.parse(messageText);
+        this.log('info', 'Parsed WebSocket message', { type: message.type, dataKeys: Object.keys(message.data || {}) });
+        this.handleMessage(message);
+      } catch (error) {
+        this.log('error', 'Failed to parse WebSocket message', { error, rawData: event.data });
+        this.emit('error', { error: 'Failed to parse message', data: event.data });
+      }
+    };
+
+    const closeHandler = (event: any) => {
+      if (!isCurrentSocket()) return;
+      const code = event.code || 1000;
+      const reason = event.reason || 'Connection closed';
+      this.log('warn', 'WebSocket connection closed', { code, reason });
+      this.emit('disconnected', { code, reason });
+      if (!opened) {
+        rejectConnect(new Error(`WebSocket closed before open: ${reason}`));
+      }
+      this.scheduleReconnect();
+    };
+
+    const errorHandler = (error: any) => {
+      if (!isCurrentSocket()) return;
+      const errorMessage = error.message || error.toString() || 'WebSocket error';
+      this.log('error', 'WebSocket error occurred', { error: errorMessage, fullError: error });
+      this.emit('error', { error: errorMessage });
+      rejectConnect(new Error(errorMessage));
+    };
+
+    // Store handlers for cleanup
+    this.eventHandlers.set('open', openHandler);
+    this.eventHandlers.set('message', messageHandler);
+    this.eventHandlers.set('close', closeHandler);
+    this.eventHandlers.set('error', errorHandler);
+
+    // Add event listeners
+    socket.addEventListener('open', openHandler);
+    socket.addEventListener('message', messageHandler);
+    socket.addEventListener('close', closeHandler);
+    socket.addEventListener('error', errorHandler);
+
+    return connectPromise;
   }
 
   /**
@@ -388,16 +669,9 @@ export class RagwallaWebSocket {
    */
   disconnect(): void {
     this.isManuallyDisconnected = true;
-    if (this.ws) {
-      // Remove event listeners
-      this.eventHandlers.forEach((handler, event) => {
-        this.ws!.removeEventListener(event, handler);
-      });
-      this.eventHandlers.clear();
-      
-      this.ws.close();
-      this.ws = null;
-    }
+    this.invalidatePendingReconnects();
+    this.cancelActiveConnect('WebSocket connection cancelled');
+    this.closeCurrentSocket();
   }
 
   /**
@@ -407,44 +681,37 @@ export class RagwallaWebSocket {
    * Format: { type: 'message', content: '...', role: '...', timestamp: '...' }
    */
   sendMessage(message: ChatMessage): void {
-    if (!this.ws || this.ws.readyState !== 1) { // 1 = OPEN
-      this.log('error', 'Cannot send message - WebSocket not connected', { 
-        readyState: this.ws?.readyState, 
-        message 
-      });
-      throw new Error('WebSocket is not connected');
-    }
-
-    // Server expects content at top level, not nested in data object
-    const payload = {
-      type: 'message',
-      content: message.content,
-      role: message.role,
-      timestamp: new Date().toISOString(),
-      ...(message.metadata && { metadata: message.metadata }),
-      ...(this.truncationStrategy && { truncationStrategy: this.truncationStrategy }),
-      ...(this.maxKbCharsPerChunk !== undefined && { maxKbCharsPerChunk: this.maxKbCharsPerChunk }),
-      ...(this.semanticAugmentation !== undefined && { semanticAugmentation: this.semanticAugmentation }),
-    };
-
+    const payload = this.buildMessagePayload(message);
     this.log('info', 'Sending WebSocket message', { payload });
-    this.ws.send(JSON.stringify(payload));
+    this.sendPayload(payload, message);
+  }
+
+  /**
+   * Reconnect if needed, then send a chat message. Use this from proxies that must
+   * fail before accepting a browser message when the upstream socket cannot be restored.
+   */
+  async sendMessageAsync(message: ChatMessage): Promise<void> {
+    const payload = this.buildMessagePayload(message);
+    await this.ensureConnectedForSend();
+    this.log('info', 'Sending WebSocket message', { payload });
+    this.sendPayload(payload, message);
   }
 
   /**
    * Send raw data to the WebSocket
    */
   send(data: any): void {
-    if (!this.ws || this.ws.readyState !== 1) { // 1 = OPEN
-      this.log('error', 'Cannot send data - WebSocket not connected', { 
-        readyState: this.ws?.readyState, 
-        data 
-      });
-      throw new Error('WebSocket is not connected');
-    }
-
     this.log('info', 'Sending raw WebSocket data', { data });
-    this.ws.send(JSON.stringify(data));
+    this.sendPayload(data, data);
+  }
+
+  /**
+   * Reconnect if needed, then send a raw Ragwalla frame.
+   */
+  async sendAsync(data: any): Promise<void> {
+    await this.ensureConnectedForSend();
+    this.log('info', 'Sending raw WebSocket data', { data });
+    this.sendPayload(data, data);
   }
 
   /**

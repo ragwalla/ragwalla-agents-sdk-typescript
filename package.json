@@ -18,13 +18,16 @@
     }
   },
   "scripts": {
-    "build": "npm run build:node && npm run build:workers",
+    "clean": "node scripts/clean-dist.mjs",
+    "build": "npm run clean && npm run build:node && npm run build:workers && npm run test:dist",
     "build:node": "tsc",
     "build:workers": "tsc --project tsconfig.workers.json --outDir dist",
     "dev": "tsc --watch",
     "test": "jest --passWithNoTests",
+    "test:dist": "node scripts/smoke-built-import.mjs",
     "test:workers": "vitest run --config vitest.workers.config.ts",
     "lint": "eslint src/**/*.ts",
+    "prepack": "npm run build",
     "prepublishOnly": "npm run build",
     "test-client": "ts-node test-client.ts",
     "test-client:debug": "DEBUG=true ts-node test-client.ts --debug",

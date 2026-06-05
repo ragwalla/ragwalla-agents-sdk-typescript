@@ -1,5 +1,5 @@
-import { HTTPClient } from '../client/http-client';
-import { QuotaEvent, QuotaStatus } from '../types';
+import { HTTPClient } from '../client/http-client.js';
+import { QuotaEvent, QuotaStatus } from '../types/index.js';
 
 export class QuotaResource {
   constructor(private client: HTTPClient) {}

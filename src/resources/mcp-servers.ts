@@ -1,4 +1,4 @@
-import { HTTPClient } from '../client/http-client';
+import { HTTPClient } from '../client/http-client.js';
 import {
   MCPServer,
   CreateMCPServerRequest,
@@ -11,7 +11,7 @@ import {
   MCPOAuthStartResponse,
   MCPOAuthStatusResponse,
   MCPOAuthRefreshResponse,
-} from '../types';
+} from '../types/index.js';
 
 export class MCPServersResource {
   constructor(private client: HTTPClient) {}

@@ -20,7 +20,7 @@ class FakeWebSocket {
   static get last(): FakeWebSocket { return FakeWebSocket.instances[FakeWebSocket.instances.length - 1]; }
 
   url: string;
-  readyState = 1; // OPEN
+  readyState = 0; // CONNECTING until open
   sent: string[] = [];
   private handlers: Record<string, Handler[]> = {};
 
@@ -33,8 +33,16 @@ class FakeWebSocket {
     this.handlers[type] = (this.handlers[type] || []).filter((h) => h !== fn);
   }
   send(data: string): void { this.sent.push(data); }
-  close(): void {}
-  fire(type: string, event: any): void { (this.handlers[type] || []).forEach((h) => h(event)); }
+  close(): void { this.readyState = 3; }
+  fire(type: string, event: any): void {
+    if (type === 'open') {
+      this.readyState = 1;
+    }
+    if (type === 'close') {
+      this.readyState = 3;
+    }
+    (this.handlers[type] || []).forEach((h) => h(event));
+  }
   frame(obj: unknown): void { this.fire('message', { data: JSON.stringify(obj) }); }
 }
 
@@ -71,6 +79,10 @@ function newClient(): RagwallaWebSocket {
   return new RagwallaWebSocket({ baseURL: BASE, reconnectAttempts: 0 });
 }
 
+function newReconnectClient(): RagwallaWebSocket {
+  return new RagwallaWebSocket({ baseURL: BASE, reconnectAttempts: 1, reconnectDelay: 0 });
+}
+
 function installWorkersRuntime(fetchMock: unknown): void {
   (globalThis as any).WebSocketPair = function WebSocketPair() {};
   (globalThis as any).fetch = fetchMock;
@@ -78,6 +90,16 @@ function installWorkersRuntime(fetchMock: unknown): void {
 
 async function flushAsyncUpgrade(): Promise<void> {
   await new Promise<void>((resolve) => setImmediate(resolve));
+}
+
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+async function flushTimers(): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  await flushMicrotasks();
 }
 
 /** Connect and resolve by firing the socket's `open` event. */
@@ -90,14 +112,16 @@ async function connectOpen(
   await p;
 }
 
-/** Build (but do not open) a fresh connection and return its URL — the reconnect URL. */
-function reconnectUrl(client: RagwallaWebSocket): URL {
+/** Drive the SDK auto-reconnect path and return the reconnect URL. */
+async function reconnectUrl(client: RagwallaWebSocket): Promise<URL> {
   const before = FakeWebSocket.instances.length;
-  const p = client.connect('agent', 'conn', 'tok');
-  // Never opened; avoid an unhandled rejection if it ever rejects.
-  (p as Promise<void>).catch(() => {});
+  FakeWebSocket.last.fire('close', { code: 1006, reason: 'network drop' });
+  await flushTimers();
   expect(FakeWebSocket.instances.length).toBe(before + 1);
-  return new URL(FakeWebSocket.last.url);
+  const url = new URL(FakeWebSocket.last.url);
+  FakeWebSocket.last.fire('open', {});
+  await flushMicrotasks();
+  return url;
 }
 
 beforeEach(() => {
@@ -220,6 +244,379 @@ describe('Cloudflare Workers WebSocket transport', () => {
 });
 
 describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
+  it('emits raw frame events for known frames before SDK normalization', async () => {
+    const client = newClient();
+    await connectOpen(client);
+
+    const order: string[] = [];
+    const rawFrame = jest.fn((frame: any) => {
+      order.push(`rawFrame:${frame.type}`);
+    });
+    const frame = jest.fn((raw: any) => {
+      order.push(`frame:${raw.type}`);
+    });
+    const chunk = jest.fn(() => {
+      order.push('chunk');
+    });
+
+    client.on('rawFrame', rawFrame);
+    client.on('frame', frame);
+    client.on('chunk', chunk);
+
+    const inbound = {
+      type: 'chunk',
+      messageId: 'msg_1',
+      content: 'hello',
+      futureField: { preserve: true }
+    };
+    FakeWebSocket.last.frame(inbound);
+
+    expect(rawFrame).toHaveBeenCalledWith(inbound);
+    expect(frame).toHaveBeenCalledWith(inbound);
+    expect(chunk).toHaveBeenCalledWith({ messageId: 'msg_1', content: 'hello' });
+    expect(order).toEqual(['rawFrame:chunk', 'frame:chunk', 'chunk']);
+  });
+
+  it('auto reconnect uses getReconnectToken and preserves thread/resume params', async () => {
+    const getReconnectToken = jest.fn(async () => 'fresh_tok');
+    const client = new RagwallaWebSocket({
+      baseURL: BASE,
+      reconnectAttempts: 1,
+      reconnectDelay: 0,
+      getReconnectToken
+    });
+    await connectOpen(client, { threadId: 'thr_1' });
+    FakeWebSocket.last.frame({ type: 'message_created', messageId: 'msg_1' });
+
+    FakeWebSocket.last.fire('close', { code: 1006, reason: 'network drop' });
+    await flushTimers();
+
+    expect(getReconnectToken).toHaveBeenCalledWith(expect.objectContaining({
+      agentId: 'agent',
+      connectionId: 'conn',
+      threadId: 'thr_1',
+      resumeMessageId: 'msg_1',
+      previousToken: 'tok',
+      attempt: 1,
+      reason: 'auto_reconnect'
+    }));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    const reconnect = new URL(FakeWebSocket.last.url);
+    expect(reconnect.searchParams.get('token')).toBe('fresh_tok');
+    expect(reconnect.searchParams.get('thread_id')).toBe('thr_1');
+    expect(reconnect.searchParams.get('resume_message_id')).toBe('msg_1');
+
+    FakeWebSocket.last.fire('open', {});
+    await flushMicrotasks();
+  });
+
+  it('continues reconnecting when a reconnect socket closes before open', async () => {
+    let tokenCounter = 0;
+    const getReconnectToken = jest.fn(async () => `fresh_tok_${++tokenCounter}`);
+    const client = new RagwallaWebSocket({
+      baseURL: BASE,
+      reconnectAttempts: 2,
+      reconnectDelay: 0,
+      getReconnectToken
+    });
+    await connectOpen(client, { threadId: 'thr_1' });
+
+    FakeWebSocket.last.fire('close', { code: 1006, reason: 'network drop' });
+    await flushTimers();
+
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(new URL(FakeWebSocket.last.url).searchParams.get('token')).toBe('fresh_tok_1');
+
+    FakeWebSocket.last.fire('close', { code: 1006, reason: 'closed before open' });
+    await flushTimers();
+    await flushTimers();
+
+    expect(getReconnectToken).toHaveBeenCalledTimes(2);
+    expect(FakeWebSocket.instances).toHaveLength(3);
+    expect(new URL(FakeWebSocket.last.url).searchParams.get('token')).toBe('fresh_tok_2');
+
+    FakeWebSocket.last.fire('open', {});
+    await flushMicrotasks();
+    expect(client.isConnected()).toBe(true);
+  });
+
+  it('manual disconnect cancels a pending token refresh reconnect', async () => {
+    let resolveToken!: (token: string) => void;
+    const getReconnectToken = jest.fn(() => new Promise<string>((resolve) => {
+      resolveToken = resolve;
+    }));
+    const reconnectFailed = jest.fn();
+    const client = new RagwallaWebSocket({
+      baseURL: BASE,
+      reconnectAttempts: 1,
+      reconnectDelay: 0,
+      getReconnectToken
+    });
+    client.on('reconnectFailed', reconnectFailed);
+    await connectOpen(client);
+
+    FakeWebSocket.last.fire('close', { code: 1006, reason: 'network drop' });
+    await flushTimers();
+    expect(getReconnectToken).toHaveBeenCalledTimes(1);
+
+    client.disconnect();
+    resolveToken('fresh_after_disconnect');
+    await flushMicrotasks();
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(client.isConnected()).toBe(false);
+    expect(reconnectFailed).not.toHaveBeenCalled();
+  });
+
+  it('explicit connect cancels a pending token refresh reconnect to the old agent', async () => {
+    let resolveToken!: (token: string) => void;
+    const getReconnectToken = jest.fn(() => new Promise<string>((resolve) => {
+      resolveToken = resolve;
+    }));
+    const client = new RagwallaWebSocket({
+      baseURL: BASE,
+      reconnectAttempts: 1,
+      reconnectDelay: 0,
+      getReconnectToken
+    });
+    await connectOpen(client);
+
+    FakeWebSocket.last.fire('close', { code: 1006, reason: 'network drop' });
+    await flushTimers();
+    expect(getReconnectToken).toHaveBeenCalledTimes(1);
+
+    const explicitConnect = client.connect('agent_new', 'conn_new', 'tok_new');
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    FakeWebSocket.last.fire('open', {});
+    await explicitConnect;
+
+    resolveToken('old_agent_fresh_token');
+    await flushMicrotasks();
+
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    const explicitUrl = new URL(FakeWebSocket.last.url);
+    expect(explicitUrl.pathname).toBe('/v1/agents/agent_new/conn_new');
+    expect(explicitUrl.searchParams.get('token')).toBe('tok_new');
+  });
+
+  it('explicit connect closes and ignores a superseded pending connect socket', async () => {
+    const client = newClient();
+    const connected = jest.fn();
+    const chunk = jest.fn();
+    client.on('connected', connected);
+    client.on('chunk', chunk);
+
+    const oldConnect = client.connect('agent_old', 'conn_old', 'tok_old');
+    const oldConnectRejection = expect(oldConnect).rejects.toThrow('WebSocket connection superseded');
+    const oldSocket = FakeWebSocket.last;
+
+    const newConnect = client.connect('agent_new', 'conn_new', 'tok_new');
+    await oldConnectRejection;
+    expect(oldSocket.readyState).toBe(3);
+
+    const newSocket = FakeWebSocket.last;
+    newSocket.fire('open', {});
+    await newConnect;
+
+    oldSocket.fire('open', {});
+    oldSocket.frame({ type: 'chunk', messageId: 'old_msg', content: 'stale' });
+
+    expect(connected).toHaveBeenCalledTimes(1);
+    expect(chunk).not.toHaveBeenCalled();
+    expect(new URL(newSocket.url).pathname).toBe('/v1/agents/agent_new/conn_new');
+  });
+
+  it('explicit connect closes and ignores a superseded auto-reconnect socket', async () => {
+    const getReconnectToken = jest.fn(async () => 'fresh_reconnect_tok');
+    const client = new RagwallaWebSocket({
+      baseURL: BASE,
+      reconnectAttempts: 1,
+      reconnectDelay: 0,
+      getReconnectToken
+    });
+    const reconnectFailed = jest.fn();
+    const chunk = jest.fn();
+    client.on('reconnectFailed', reconnectFailed);
+    client.on('chunk', chunk);
+    await connectOpen(client);
+
+    FakeWebSocket.last.fire('close', { code: 1006, reason: 'network drop' });
+    await flushTimers();
+
+    const reconnectSocket = FakeWebSocket.last;
+    expect(new URL(reconnectSocket.url).searchParams.get('token')).toBe('fresh_reconnect_tok');
+
+    const explicitConnect = client.connect('agent_new', 'conn_new', 'tok_new');
+    expect(reconnectSocket.readyState).toBe(3);
+
+    const explicitSocket = FakeWebSocket.last;
+    explicitSocket.fire('open', {});
+    await explicitConnect;
+    await flushMicrotasks();
+
+    reconnectSocket.fire('open', {});
+    reconnectSocket.frame({ type: 'chunk', messageId: 'old_msg', content: 'stale' });
+
+    expect(reconnectFailed).not.toHaveBeenCalled();
+    expect(chunk).not.toHaveBeenCalled();
+    expect(new URL(explicitSocket.url).pathname).toBe('/v1/agents/agent_new/conn_new');
+  });
+
+  it('disconnect rejects a pending connect before open', async () => {
+    const client = newClient();
+    const connectPromise = client.connect('agent', 'conn', 'tok');
+    expect(FakeWebSocket.instances).toHaveLength(1);
+
+    client.disconnect();
+
+    await expect(connectPromise).rejects.toThrow('WebSocket connection cancelled');
+    expect(FakeWebSocket.last.readyState).toBe(3);
+    expect(client.isConnected()).toBe(false);
+  });
+
+  it('sendAsync waits for a pending connect instead of opening a second socket', async () => {
+    const client = newClient();
+    const connectPromise = client.connect('agent', 'conn', 'tok');
+    const connectingSocket = FakeWebSocket.last;
+
+    const sendPromise = client.sendAsync({ type: 'ping' });
+    await flushMicrotasks();
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(connectingSocket.sent).toEqual([]);
+
+    connectingSocket.fire('open', {});
+    await Promise.all([connectPromise, sendPromise]);
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(connectingSocket.sent).toEqual([JSON.stringify({ type: 'ping' })]);
+  });
+
+  it('sendAsync reconnects with a fresh token before sending when upstream is down', async () => {
+    const getReconnectToken = jest.fn(async () => 'fresh_send_tok');
+    const client = new RagwallaWebSocket({
+      baseURL: BASE,
+      reconnectAttempts: 0,
+      reconnectDelay: 0,
+      getReconnectToken
+    });
+    await connectOpen(client, { threadId: 'thr_1' });
+
+    const oldSocket = FakeWebSocket.last;
+    oldSocket.readyState = 3;
+    const sendPromise = client.sendAsync({ type: 'ping' });
+    await flushMicrotasks();
+
+    expect(getReconnectToken).toHaveBeenCalledWith(expect.objectContaining({
+      agentId: 'agent',
+      connectionId: 'conn',
+      threadId: 'thr_1',
+      previousToken: 'tok',
+      attempt: 0,
+      reason: 'send'
+    }));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(FakeWebSocket.last.sent).toEqual([]);
+    expect(new URL(FakeWebSocket.last.url).searchParams.get('token')).toBe('fresh_send_tok');
+
+    FakeWebSocket.last.fire('open', {});
+    await sendPromise;
+    expect(FakeWebSocket.last.sent).toEqual([JSON.stringify({ type: 'ping' })]);
+  });
+
+  it('sendAsync rejects when its reconnect socket closes before open and allows a later retry', async () => {
+    let tokenCounter = 0;
+    const getReconnectToken = jest.fn(async () => `fresh_send_tok_${++tokenCounter}`);
+    const client = new RagwallaWebSocket({
+      baseURL: BASE,
+      reconnectAttempts: 0,
+      reconnectDelay: 0,
+      getReconnectToken
+    });
+    await connectOpen(client);
+
+    FakeWebSocket.last.readyState = 3;
+    const failedSend = client.sendAsync({ type: 'ping' });
+    await flushMicrotasks();
+    expect(FakeWebSocket.instances).toHaveLength(2);
+
+    FakeWebSocket.last.fire('close', { code: 1006, reason: 'closed before open' });
+    await expect(failedSend).rejects.toThrow('WebSocket closed before open: closed before open');
+
+    const retrySend = client.sendAsync({ type: 'ping_retry' });
+    await flushMicrotasks();
+    expect(FakeWebSocket.instances).toHaveLength(3);
+    FakeWebSocket.last.fire('open', {});
+    await retrySend;
+
+    expect(FakeWebSocket.last.sent).toEqual([JSON.stringify({ type: 'ping_retry' })]);
+  });
+
+  it('sendAsync fails before sending when token refresh fails', async () => {
+    const getReconnectToken = jest.fn(async () => {
+      throw new Error('mint failed');
+    });
+    const client = new RagwallaWebSocket({
+      baseURL: BASE,
+      reconnectAttempts: 0,
+      reconnectDelay: 0,
+      getReconnectToken
+    });
+    await connectOpen(client);
+
+    const oldSocket = FakeWebSocket.last;
+    oldSocket.readyState = 3;
+
+    await expect(client.sendAsync({ type: 'ping' })).rejects.toThrow('mint failed');
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(oldSocket.sent).toEqual([]);
+  });
+
+  it('public connect without threadId starts a fresh logical session', async () => {
+    const client = newClient();
+    await connectOpen(client);
+    FakeWebSocket.last.frame({ type: 'thread_info', threadId: 'thr_old' });
+    FakeWebSocket.last.frame({ type: 'message_created', messageId: 'msg_old' });
+
+    const connectPromise = client.connect('agent_b', 'conn_b', 'tok_b');
+    const url = new URL(FakeWebSocket.last.url);
+
+    expect(url.pathname).toBe('/v1/agents/agent_b/conn_b');
+    expect(url.searchParams.has('thread_id')).toBe(false);
+    expect(url.searchParams.has('resume_message_id')).toBe(false);
+
+    FakeWebSocket.last.fire('open', {});
+    await connectPromise;
+  });
+
+  it('public connect to a different thread does not resume the old message', async () => {
+    const client = newClient();
+    await connectOpen(client, { threadId: 'thr_old' });
+    FakeWebSocket.last.frame({ type: 'message_created', messageId: 'msg_old' });
+
+    const connectPromise = client.connect('agent_b', 'conn_b', 'tok_b', 'thr_new');
+    const url = new URL(FakeWebSocket.last.url);
+
+    expect(url.pathname).toBe('/v1/agents/agent_b/conn_b');
+    expect(url.searchParams.get('thread_id')).toBe('thr_new');
+    expect(url.searchParams.has('resume_message_id')).toBe(false);
+
+    FakeWebSocket.last.fire('open', {});
+    await connectPromise;
+  });
+
+  it('auto reconnect preserves thread_id and resume_message_id', async () => {
+    const client = newReconnectClient();
+    await connectOpen(client);
+    FakeWebSocket.last.frame({ type: 'thread_info', threadId: 'thr_old' });
+    FakeWebSocket.last.frame({ type: 'message_created', messageId: 'msg_old' });
+
+    const url = await reconnectUrl(client);
+
+    expect(url.searchParams.get('thread_id')).toBe('thr_old');
+    expect(url.searchParams.get('resume_message_id')).toBe('msg_old');
+  });
+
   it('initial connect carries thread_id and no resume_message_id (no dead last_event_id)', async () => {
     const client = newClient();
     await connectOpen(client, { threadId: 'thr_1' });
@@ -230,40 +627,40 @@ describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
   });
 
   it('message_created sets the in-flight id → reconnect carries resume_message_id (with thread_id from thread_info)', async () => {
-    const client = newClient();
+    const client = newReconnectClient();
     await connectOpen(client); // brand-new thread: no thread_id arg
     FakeWebSocket.last.frame({ type: 'thread_info', threadId: 'thr_1' }); // §6a 2.5
     FakeWebSocket.last.frame({ type: 'message_created', messageId: 'msg_1', role: 'assistant' });
 
-    const url = reconnectUrl(client);
+    const url = await reconnectUrl(client);
     expect(url.searchParams.get('thread_id')).toBe('thr_1');
     expect(url.searchParams.get('resume_message_id')).toBe('msg_1');
   });
 
   it('chunk sets the in-flight id as a fallback when message_created was missed', async () => {
-    const client = newClient();
+    const client = newReconnectClient();
     await connectOpen(client);
     FakeWebSocket.last.frame({ type: 'thread_info', threadId: 'thr_1' });
     // No message_created — only chunks (socket joined mid-stream).
     FakeWebSocket.last.frame({ type: 'chunk', messageId: 'msg_2', content: 'partial' });
 
-    expect(reconnectUrl(client).searchParams.get('resume_message_id')).toBe('msg_2');
+    expect((await reconnectUrl(client)).searchParams.get('resume_message_id')).toBe('msg_2');
   });
 
   it('complete clears the in-flight id → reconnect does NOT resume a finished message', async () => {
-    const client = newClient();
+    const client = newReconnectClient();
     await connectOpen(client);
     FakeWebSocket.last.frame({ type: 'thread_info', threadId: 'thr_1' });
     FakeWebSocket.last.frame({ type: 'message_created', messageId: 'msg_1' });
     FakeWebSocket.last.frame({ type: 'complete', messageId: 'msg_1' });
 
-    const url = reconnectUrl(client);
+    const url = await reconnectUrl(client);
     expect(url.searchParams.get('thread_id')).toBe('thr_1');
     expect(url.searchParams.has('resume_message_id')).toBe(false);
   });
 
   it('terminal run_state emits runState and clears the in-flight id', async () => {
-    const client = newClient();
+    const client = newReconnectClient();
     await connectOpen(client);
     FakeWebSocket.last.frame({ type: 'thread_info', threadId: 'thr_1' });
     FakeWebSocket.last.frame({ type: 'message_created', messageId: 'msg_1' });
@@ -277,17 +674,17 @@ describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
 
     expect(runState).toHaveBeenCalledWith({ runId: 'run_1', runStatus: 'completed', activeTool: null });
     expect(runResumed).not.toHaveBeenCalled();
-    expect(reconnectUrl(client).searchParams.has('resume_message_id')).toBe(false); // cleared
+    expect((await reconnectUrl(client)).searchParams.has('resume_message_id')).toBe(false); // cleared
   });
 
   it('run_cancelled clears the in-flight id', async () => {
-    const client = newClient();
+    const client = newReconnectClient();
     await connectOpen(client);
     FakeWebSocket.last.frame({ type: 'thread_info', threadId: 'thr_1' });
     FakeWebSocket.last.frame({ type: 'message_created', messageId: 'msg_1' });
     FakeWebSocket.last.frame({ type: 'run_cancelled', runId: 'run_1' });
 
-    expect(reconnectUrl(client).searchParams.has('resume_message_id')).toBe(false);
+    expect((await reconnectUrl(client)).searchParams.has('resume_message_id')).toBe(false);
   });
 
   it('non-terminal run_state emits runState only (the legacy runResumed is gone)', async () => {
@@ -318,25 +715,25 @@ describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
   });
 
   it('connected.currentThreadId also persists activeThreadId for reconnect', async () => {
-    const client = newClient();
+    const client = newReconnectClient();
     await connectOpen(client);
     FakeWebSocket.last.frame({ type: 'connected', currentThreadId: 'thr_9', activeRunId: 'run_9', activeRunStatus: 'in_progress' });
     FakeWebSocket.last.frame({ type: 'message_created', messageId: 'msg_9' });
 
-    const url = reconnectUrl(client);
+    const url = await reconnectUrl(client);
     expect(url.searchParams.get('thread_id')).toBe('thr_9');
     expect(url.searchParams.get('resume_message_id')).toBe('msg_9');
   });
 
   it('INVARIANT: an in-flight id without a known thread_id sends NO resume_message_id, and reconnect still proceeds', async () => {
-    const client = newClient();
+    const client = newReconnectClient();
     await connectOpen(client); // no thread_info / connected, no explicit threadId → activeThreadId null
     FakeWebSocket.last.frame({ type: 'message_created', messageId: 'msg_1' });
 
     // The gate withholds resume_message_id (it would be unscoped without thread_id) and the
     // reconnect proceeds normally — it does NOT throw inside connect() (which would strand
     // the auto-reconnect path with no retry).
-    const url = reconnectUrl(client);
+    const url = await reconnectUrl(client);
     expect(url.searchParams.has('resume_message_id')).toBe(false);
     expect(url.searchParams.has('thread_id')).toBe(false);
   });
@@ -344,18 +741,18 @@ describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
   it('an explicit threadId persists for reconnect even before any server frame arrives', async () => {
     // Drop after `open` but before connected/thread_info: the reconnect must still carry
     // the thread the caller named, or the worker loses history + can't resume.
-    const client = newClient();
+    const client = newReconnectClient();
     await connectOpen(client, { threadId: 'thr_explicit' });
 
-    expect(reconnectUrl(client).searchParams.get('thread_id')).toBe('thr_explicit');
+    expect((await reconnectUrl(client)).searchParams.get('thread_id')).toBe('thr_explicit');
   });
 
   it('explicit threadId + in-flight message → reconnect carries thread_id AND resume_message_id without a thread_info frame', async () => {
-    const client = newClient();
+    const client = newReconnectClient();
     await connectOpen(client, { threadId: 'thr_explicit' });
     FakeWebSocket.last.frame({ type: 'message_created', messageId: 'msg_1' }); // no thread_info first
 
-    const url = reconnectUrl(client);
+    const url = await reconnectUrl(client);
     expect(url.searchParams.get('thread_id')).toBe('thr_explicit');
     expect(url.searchParams.get('resume_message_id')).toBe('msg_1');
   });

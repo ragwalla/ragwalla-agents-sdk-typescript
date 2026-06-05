@@ -1,10 +1,10 @@
-import { HTTPClient } from '../client/http-client';
+import { HTTPClient } from '../client/http-client.js';
 import {
   NamespaceFlag,
   SetNamespaceFlagRequest,
   DeleteNamespaceFlagRequest,
   NamespaceFlagList,
-} from '../types';
+} from '../types/index.js';
 
 /**
  * Manage namespace-level feature flags.

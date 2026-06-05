@@ -1,4 +1,4 @@
-import { HTTPClient } from '../client/http-client';
+import { HTTPClient } from '../client/http-client.js';
 import {
   Agent,
   AgentChild,
@@ -9,7 +9,7 @@ import {
   ToolType,
   SystemTool,
   type BulkAttachSkillsResponse,
-} from '../types';
+} from '../types/index.js';
 
 export class AgentsResource {
   constructor(private client: HTTPClient) {}

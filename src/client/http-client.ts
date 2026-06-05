@@ -1,4 +1,4 @@
-import { RagwallaConfig, RagwallaError } from '../types';
+import { RagwallaConfig, RagwallaError } from '../types/index.js';
 
 export class HTTPClient {
   private apiKey: string;

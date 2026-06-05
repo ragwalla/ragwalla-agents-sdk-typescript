@@ -1,11 +1,11 @@
-import { HTTPClient } from '../client/http-client';
+import { HTTPClient } from '../client/http-client.js';
 import {
   WorkspaceFile,
   WorkspaceFileType,
   CreateWorkspaceFileRequest,
   UpdateWorkspaceFileRequest,
   WorkspacePreview,
-} from '../types';
+} from '../types/index.js';
 
 export class WorkspaceFilesResource {
   constructor(private client: HTTPClient) {}

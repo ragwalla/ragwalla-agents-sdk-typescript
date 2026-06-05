@@ -1,10 +1,10 @@
-import { HTTPClient } from '../client/http-client';
+import { HTTPClient } from '../client/http-client.js';
 import {
   FileObject,
   FileListResponse,
   FileDeleted,
   UploadFileRequest,
-} from '../types';
+} from '../types/index.js';
 
 export class FilesResource {
   constructor(private client: HTTPClient) {}

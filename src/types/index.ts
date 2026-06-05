@@ -753,12 +753,17 @@ export function isTerminalRunStatus(status: string | null | undefined): boolean 
   return status != null && TERMINAL_RUN_STATUSES.has(status as RunStatus);
 }
 
+export type KnownWebSocketMessageType =
+  'message' | 'chat_message' | 'chunk' | 'complete' | 'message_created' |
+  'thread_info' | 'thread_history' | 'typing' | 'tool_use' | 'token_usage' | 'error' |
+  'connection_status' | 'connected' | 'cf_agent_state' |
+  'run_paused' | 'run_cancelled' | 'continuation_mode_updated' | 'continue_run_result' |
+  'status' | 'tool_executing' | 'tool_complete' | 'resume' | 'run_state';
+
+export type WebSocketMessageType = KnownWebSocketMessageType | (string & {});
+
 export interface WebSocketMessage {
-  type: 'message' | 'chat_message' | 'chunk' | 'complete' | 'message_created' |
-        'thread_info' | 'thread_history' | 'typing' | 'tool_use' | 'token_usage' | 'error' |
-        'connection_status' | 'connected' | 'cf_agent_state' |
-        'run_paused' | 'run_cancelled' | 'continuation_mode_updated' | 'continue_run_result' |
-        'status' | 'tool_executing' | 'tool_complete' | 'resume' | 'run_state';
+  type: WebSocketMessageType;
   data?: any; // Optional - some message types don't use data wrapper
   content?: string; // For message types - content at top level
   role?: string; // For message types

@@ -1,10 +1,10 @@
-import { HTTPClient } from '../client/http-client';
+import { HTTPClient } from '../client/http-client.js';
 import {
   Endpoint,
   CreateEndpointRequest,
   EndpointList,
   EndpointDeleted,
-} from '../types';
+} from '../types/index.js';
 
 /**
  * Manage WfP endpoints via platform keys (pk-*).

@@ -1,24 +1,25 @@
-import { HTTPClient } from './client/http-client';
-import { RagwallaWebSocket } from './client/websocket-client';
-import { AgentsResource } from './resources/agents';
-import { AssistantsResource } from './resources/assistants';
-import { ThreadsResource } from './resources/threads';
-import { MessagesResource } from './resources/messages';
-import { VectorStoresResource } from './resources/vector-stores';
-import { QuotaResource } from './resources/quota';
-import { MCPServersResource } from './resources/mcp-servers';
-import { ChannelsResource } from './resources/channels';
-import { OrganizationsResource } from './resources/organizations';
-import { ModelsResource } from './resources/models';
-import { WorkspaceFilesResource } from './resources/workspace-files';
-import { MemoriesResource } from './resources/memories';
-import { FeatureFlagsResource } from './resources/feature-flags';
-import { EndpointsResource } from './resources/endpoints';
-import { NamespaceFlagsResource } from './resources/namespace-flags';
-import { KnowledgeGraphsResource } from './resources/knowledge-graphs';
-import { MemoryStoresResource } from './resources/memory-stores';
-import { FilesResource } from './resources/files';
-import { RagwallaConfig } from './types';
+import { HTTPClient } from './client/http-client.js';
+import { RagwallaWebSocket } from './client/websocket-client.js';
+import type { WebSocketReconnectTokenProvider } from './client/websocket-client.js';
+import { AgentsResource } from './resources/agents.js';
+import { AssistantsResource } from './resources/assistants.js';
+import { ThreadsResource } from './resources/threads.js';
+import { MessagesResource } from './resources/messages.js';
+import { VectorStoresResource } from './resources/vector-stores.js';
+import { QuotaResource } from './resources/quota.js';
+import { MCPServersResource } from './resources/mcp-servers.js';
+import { ChannelsResource } from './resources/channels.js';
+import { OrganizationsResource } from './resources/organizations.js';
+import { ModelsResource } from './resources/models.js';
+import { WorkspaceFilesResource } from './resources/workspace-files.js';
+import { MemoriesResource } from './resources/memories.js';
+import { FeatureFlagsResource } from './resources/feature-flags.js';
+import { EndpointsResource } from './resources/endpoints.js';
+import { NamespaceFlagsResource } from './resources/namespace-flags.js';
+import { KnowledgeGraphsResource } from './resources/knowledge-graphs.js';
+import { MemoryStoresResource } from './resources/memory-stores.js';
+import { FilesResource } from './resources/files.js';
+import { RagwallaConfig } from './types/index.js';
 
 export class Ragwalla {
   public readonly agents: AgentsResource;
@@ -77,6 +78,7 @@ export class Ragwalla {
     reconnectAttempts?: number;
     reconnectDelay?: number;
     continuationMode?: 'auto' | 'manual';
+    getReconnectToken?: WebSocketReconnectTokenProvider;
   }): RagwallaWebSocket {
     return new RagwallaWebSocket({
       baseURL: this.config.baseURL,
@@ -94,26 +96,26 @@ export class Ragwalla {
 }
 
 // Export all types and classes
-export * from './types';
-export * from './client/http-client';
-export * from './client/websocket-client';
-export * from './resources/agents';
-export * from './resources/assistants';
-export * from './resources/threads';
-export * from './resources/vector-stores';
-export * from './resources/quota';
-export * from './resources/mcp-servers';
-export * from './resources/channels';
-export * from './resources/organizations';
-export * from './resources/models';
-export * from './resources/workspace-files';
-export * from './resources/memories';
-export * from './resources/feature-flags';
-export * from './resources/endpoints';
-export * from './resources/namespace-flags';
-export * from './resources/knowledge-graphs';
-export * from './resources/memory-stores';
-export * from './resources/files';
+export * from './types/index.js';
+export * from './client/http-client.js';
+export * from './client/websocket-client.js';
+export * from './resources/agents.js';
+export * from './resources/assistants.js';
+export * from './resources/threads.js';
+export * from './resources/vector-stores.js';
+export * from './resources/quota.js';
+export * from './resources/mcp-servers.js';
+export * from './resources/channels.js';
+export * from './resources/organizations.js';
+export * from './resources/models.js';
+export * from './resources/workspace-files.js';
+export * from './resources/memories.js';
+export * from './resources/feature-flags.js';
+export * from './resources/endpoints.js';
+export * from './resources/namespace-flags.js';
+export * from './resources/knowledge-graphs.js';
+export * from './resources/memory-stores.js';
+export * from './resources/files.js';
 
 // Default export
 export default Ragwalla;

@@ -1,4 +1,4 @@
-import { HTTPClient } from '../client/http-client';
+import { HTTPClient } from '../client/http-client.js';
 import {
   CreateOrganizationRequest,
   Organization,
@@ -14,7 +14,7 @@ import {
   OrganizationWebhookCreateResponse,
   OrganizationWebhookListResponse,
   OrganizationWebhookDeliveriesResponse,
-} from '../types';
+} from '../types/index.js';
 
 class ProjectsResource {
   constructor(private client: HTTPClient) {}

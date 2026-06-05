@@ -1,5 +1,5 @@
-import { HTTPClient } from '../client/http-client';
-import { ModelsListResponse } from '../types';
+import { HTTPClient } from '../client/http-client.js';
+import { ModelsListResponse } from '../types/index.js';
 
 export class ModelsResource {
   constructor(private client: HTTPClient) {}

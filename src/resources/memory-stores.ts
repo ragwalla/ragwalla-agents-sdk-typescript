@@ -1,4 +1,4 @@
-import { HTTPClient } from '../client/http-client';
+import { HTTPClient } from '../client/http-client.js';
 import {
   MemoryStore,
   CreateMemoryStoreRequest,
@@ -7,7 +7,7 @@ import {
   MemoryStoreAttachment,
   ListMemoryStoresResponse,
   ListMemoryStoreAttachmentsResponse,
-} from '../types';
+} from '../types/index.js';
 
 export class MemoryStoresResource {
   constructor(private client: HTTPClient) {}

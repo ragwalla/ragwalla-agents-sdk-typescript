@@ -1,4 +1,4 @@
-import { HTTPClient } from '../client/http-client';
+import { HTTPClient } from '../client/http-client.js';
 import {
   Assistant,
   AssistantConfig,
@@ -6,7 +6,7 @@ import {
   AssistantList,
   CreateAssistantRequest,
   UpdateAssistantRequest
-} from '../types';
+} from '../types/index.js';
 
 const ASSISTANT_CONFIG_KEYS = [
   'model',

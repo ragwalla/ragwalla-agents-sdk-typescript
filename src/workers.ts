@@ -1,31 +1,32 @@
 // Workers-specific export that excludes Node.js dependencies
-export * from './types';
-export * from './resources/agents';
-export * from './resources/assistants';
-export * from './resources/threads';
-export * from './resources/vector-stores';
-export * from './resources/quota';
-export * from './resources/models';
-export * from './resources/workspace-files';
-export * from './resources/memories';
-export * from './resources/endpoints';
-export * from './resources/namespace-flags';
-export { HTTPClient, RagwallaAPIError } from './client/http-client';
-export { RagwallaWebSocket } from './client/websocket-client';
+export * from './types/index.js';
+export * from './resources/agents.js';
+export * from './resources/assistants.js';
+export * from './resources/threads.js';
+export * from './resources/vector-stores.js';
+export * from './resources/quota.js';
+export * from './resources/models.js';
+export * from './resources/workspace-files.js';
+export * from './resources/memories.js';
+export * from './resources/endpoints.js';
+export * from './resources/namespace-flags.js';
+export { HTTPClient, RagwallaAPIError } from './client/http-client.js';
+export { RagwallaWebSocket } from './client/websocket-client.js';
 
-import { RagwallaConfig } from './types';
-import { HTTPClient } from './client/http-client';
-import { RagwallaWebSocket } from './client/websocket-client';
-import { AgentsResource } from './resources/agents';
-import { AssistantsResource } from './resources/assistants';
-import { ThreadsResource } from './resources/threads';
-import { VectorStoresResource } from './resources/vector-stores';
-import { QuotaResource } from './resources/quota';
-import { ModelsResource } from './resources/models';
-import { WorkspaceFilesResource } from './resources/workspace-files';
-import { MemoriesResource } from './resources/memories';
-import { EndpointsResource } from './resources/endpoints';
-import { NamespaceFlagsResource } from './resources/namespace-flags';
+import { RagwallaConfig } from './types/index.js';
+import { HTTPClient } from './client/http-client.js';
+import { RagwallaWebSocket } from './client/websocket-client.js';
+import type { WebSocketReconnectTokenProvider } from './client/websocket-client.js';
+import { AgentsResource } from './resources/agents.js';
+import { AssistantsResource } from './resources/assistants.js';
+import { ThreadsResource } from './resources/threads.js';
+import { VectorStoresResource } from './resources/vector-stores.js';
+import { QuotaResource } from './resources/quota.js';
+import { ModelsResource } from './resources/models.js';
+import { WorkspaceFilesResource } from './resources/workspace-files.js';
+import { MemoriesResource } from './resources/memories.js';
+import { EndpointsResource } from './resources/endpoints.js';
+import { NamespaceFlagsResource } from './resources/namespace-flags.js';
 
 /**
  * Ragwalla SDK optimized for Cloudflare Workers
@@ -78,6 +79,8 @@ export class Ragwalla {
   createWebSocket(config?: {
     reconnectAttempts?: number;
     reconnectDelay?: number;
+    continuationMode?: 'auto' | 'manual';
+    getReconnectToken?: WebSocketReconnectTokenProvider;
   }) {
     return new RagwallaWebSocket({
       baseURL: this.config.baseURL,

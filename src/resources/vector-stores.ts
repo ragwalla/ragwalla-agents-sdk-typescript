@@ -1,4 +1,4 @@
-import { HTTPClient } from '../client/http-client';
+import { HTTPClient } from '../client/http-client.js';
 import {
   VectorSearchRequest,
   VectorSearchResponse,
@@ -7,7 +7,7 @@ import {
   VectorStoreFileDeleted,
   CreateVectorStoreFileRequest,
   VectorStoreFileVectorsResponse,
-} from '../types';
+} from '../types/index.js';
 
 export class VectorStoresResource {
   constructor(private client: HTTPClient) {}

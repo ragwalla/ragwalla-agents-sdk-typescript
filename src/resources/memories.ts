@@ -1,4 +1,4 @@
-import { HTTPClient } from '../client/http-client';
+import { HTTPClient } from '../client/http-client.js';
 import {
   Memory,
   CreateMemoryRequest,
@@ -10,7 +10,7 @@ import {
   BatchCreateMemoryResponse,
   RetrieveMemoryParams,
   DeleteMemoryParams,
-} from '../types';
+} from '../types/index.js';
 
 export class MemoriesResource {
   constructor(private client: HTTPClient) {}

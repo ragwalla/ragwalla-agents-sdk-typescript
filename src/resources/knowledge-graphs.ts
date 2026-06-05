@@ -1,4 +1,4 @@
-import { HTTPClient } from '../client/http-client';
+import { HTTPClient } from '../client/http-client.js';
 import {
   KnowledgeGraph,
   CreateKnowledgeGraphRequest,
@@ -13,7 +13,7 @@ import {
   KgQueryRequest,
   KgQueryResponse,
   KgInfrastructureStatus,
-} from '../types';
+} from '../types/index.js';
 
 export class KnowledgeGraphsResource {
   constructor(private client: HTTPClient) {}

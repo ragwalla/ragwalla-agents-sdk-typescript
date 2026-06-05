@@ -41,6 +41,12 @@ const ws = ragwalla.createWebSocket({
   continuationMode: 'auto',
   reconnectAttempts: 5,   // automatic reconnection
   reconnectDelay: 1000,
+  // Optional for Durable Object proxies: mint a fresh short-lived token before
+  // SDK-driven reconnects instead of reusing the original connect() token.
+  getReconnectToken: async ({ agentId }) => {
+    const { token } = await ragwalla.agents.getToken({ agent_id: agentId, expires_in: 300 });
+    return token;
+  },
 });
 
 // Pass an existing thread id to resume that conversation; omit it for a new thread.
@@ -49,6 +55,29 @@ await ws.connect(agent.id, 'main', token, threadId);
 
 Reconnection is **automatic**. On a drop, the SDK reconnects and **re-sends `thread_id` and
 `resume_message_id` for you** — you never build those yourself.
+
+If you are writing a proxy, keep the browser data plane raw:
+
+```ts
+let browserRelayOpen = true;
+ws.on('rawFrame', (frame) => {
+  if (!browserRelayOpen) return;
+  try {
+    browserSocket.send(JSON.stringify(frame));
+  } catch (error) {
+    browserRelayOpen = false;
+    ws.disconnect();
+    console.error('Browser relay failed', error);
+  }
+});
+
+await ws.sendAsync(clientFrame); // reconnects first, or rejects before you accept the send
+```
+
+`rawFrame` and its alias `frame` fire for every inbound Ragwalla frame before SDK
+normalization, including known frame types and future upstream additions. SDK event
+listener exceptions are caught and logged, so relay failures must be handled inside the
+listener instead of relying on thrown errors for proxy control flow.
 
 ### Handle the streaming + resume events
 

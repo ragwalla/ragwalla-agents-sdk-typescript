@@ -1,11 +1,11 @@
-import { HTTPClient } from '../client/http-client';
+import { HTTPClient } from '../client/http-client.js';
 import {
   Channel,
   CreateChannelRequest,
   CreateChannelResponse,
   ChannelStatus,
   WebhookRetryResponse,
-} from '../types';
+} from '../types/index.js';
 
 export class ChannelsResource {
   constructor(private client: HTTPClient) {}
