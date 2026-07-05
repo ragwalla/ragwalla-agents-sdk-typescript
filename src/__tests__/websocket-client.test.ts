@@ -310,6 +310,25 @@ describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
     await flushMicrotasks();
   });
 
+  it("emits 'reconnecting' with attempt metadata when a retry is scheduled", async () => {
+    const reconnecting = jest.fn();
+    const client = new RagwallaWebSocket({
+      baseURL: BASE,
+      reconnectAttempts: 2,
+      reconnectDelay: 0,
+      getReconnectToken: async () => 'fresh_tok',
+    });
+    client.on('reconnecting', reconnecting);
+    await connectOpen(client, { threadId: 'thr_1' });
+
+    FakeWebSocket.last.fire('close', { code: 1006, reason: 'network drop' });
+    await flushTimers();
+
+    expect(reconnecting).toHaveBeenCalledWith(
+      expect.objectContaining({ attempt: 1, maxAttempts: 2, delayMs: 0 }),
+    );
+  });
+
   it('continues reconnecting when a reconnect socket closes before open', async () => {
     let tokenCounter = 0;
     const getReconnectToken = jest.fn(async () => `fresh_tok_${++tokenCounter}`);
