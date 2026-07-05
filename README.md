@@ -407,6 +407,7 @@ await ws.sendAsync(clientFrame);
 
 SDK event listener exceptions are caught and logged, so relay failures must be handled
 inside the `rawFrame` listener instead of relying on thrown errors for proxy control flow.
+For complete copy/paste proxy examples, see **[docs/proxy-support.md](docs/proxy-support.md)**.
 
 ### Streaming Response Example
 
@@ -993,7 +994,7 @@ Battle-tested patterns for real-world applications:
 
 ### Platform-Specific Examples
 
-- **`cloudflare-workers.ts`** - Complete Cloudflare Workers implementation with WebSocket proxying
+- **[docs/proxy-support.md](docs/proxy-support.md)** - Copy/paste WebSocket proxy examples for Cloudflare Workers and browser clients
 
 ### Running Examples
 

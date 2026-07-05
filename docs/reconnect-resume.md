@@ -79,6 +79,8 @@ normalization, including known frame types and future upstream additions. SDK ev
 listener exceptions are caught and logged, so relay failures must be handled inside the
 listener instead of relying on thrown errors for proxy control flow.
 
+For complete copy/paste proxy examples, see [proxy-support.md](proxy-support.md).
+
 ### Handle the streaming + resume events
 
 ```ts
