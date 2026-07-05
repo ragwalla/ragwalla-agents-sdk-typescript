@@ -310,6 +310,39 @@ describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
     await flushMicrotasks();
   });
 
+  it('carries resume_message_id on the FIRST connect when a resume seed is passed', async () => {
+    // connect() resets the logical session (clearing activeMessageId) before dialing, so a
+    // relay rebuilding around an in-flight message needs this parameter — a pre-connect
+    // property assignment is wiped by the reset.
+    const client = new RagwallaWebSocket({ baseURL: BASE });
+    const connectPromise = client.connect('agent', 'conn', 'tok', 'thr_1', 'msg_inflight');
+    FakeWebSocket.last.fire('open', {});
+    await connectPromise;
+
+    const url = new URL(FakeWebSocket.last.url);
+    expect(url.searchParams.get('thread_id')).toBe('thr_1');
+    expect(url.searchParams.get('resume_message_id')).toBe('msg_inflight');
+  });
+
+  it("emits 'reconnecting' with attempt metadata when a retry is scheduled", async () => {
+    const reconnecting = jest.fn();
+    const client = new RagwallaWebSocket({
+      baseURL: BASE,
+      reconnectAttempts: 2,
+      reconnectDelay: 0,
+      getReconnectToken: async () => 'fresh_tok',
+    });
+    client.on('reconnecting', reconnecting);
+    await connectOpen(client, { threadId: 'thr_1' });
+
+    FakeWebSocket.last.fire('close', { code: 1006, reason: 'network drop' });
+    await flushTimers();
+
+    expect(reconnecting).toHaveBeenCalledWith(
+      expect.objectContaining({ attempt: 1, maxAttempts: 2, delayMs: 0 }),
+    );
+  });
+
   it('continues reconnecting when a reconnect socket closes before open', async () => {
     let tokenCounter = 0;
     const getReconnectToken = jest.fn(async () => `fresh_tok_${++tokenCounter}`);
