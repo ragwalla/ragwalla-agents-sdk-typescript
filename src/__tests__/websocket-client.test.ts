@@ -310,6 +310,20 @@ describe('RagwallaWebSocket reconnect/resume protocol (§6a)', () => {
     await flushMicrotasks();
   });
 
+  it('carries resume_message_id on the FIRST connect when a resume seed is passed', async () => {
+    // connect() resets the logical session (clearing activeMessageId) before dialing, so a
+    // relay rebuilding around an in-flight message needs this parameter — a pre-connect
+    // property assignment is wiped by the reset.
+    const client = new RagwallaWebSocket({ baseURL: BASE });
+    const connectPromise = client.connect('agent', 'conn', 'tok', 'thr_1', 'msg_inflight');
+    FakeWebSocket.last.fire('open', {});
+    await connectPromise;
+
+    const url = new URL(FakeWebSocket.last.url);
+    expect(url.searchParams.get('thread_id')).toBe('thr_1');
+    expect(url.searchParams.get('resume_message_id')).toBe('msg_inflight');
+  });
+
   it("emits 'reconnecting' with attempt metadata when a retry is scheduled", async () => {
     const reconnecting = jest.fn();
     const client = new RagwallaWebSocket({

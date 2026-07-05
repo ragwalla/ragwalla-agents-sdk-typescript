@@ -528,11 +528,18 @@ export class RagwallaWebSocket {
    * @param token - Authentication token
    * @param threadId - Optional Ragwalla thread ID. If provided, resumes that thread. If omitted, a new thread is created on first message.
    */
-  async connect(agentId: string, connectionId: string, token: string, threadId?: string): Promise<void> {
+  async connect(agentId: string, connectionId: string, token: string, threadId?: string, resumeMessageId?: string): Promise<void> {
     this.invalidatePendingReconnects();
     this.cancelActiveConnect('WebSocket connection superseded');
     this.closeCurrentSocket();
     this.resetLogicalSession(threadId);
+    // Optional resume seed for callers REBUILDING a connection around an in-flight message
+    // (e.g. a relay whose previous socket exhausted its retries mid-stream). Must be applied
+    // AFTER resetLogicalSession — which clears activeMessageId — so the first connect URL
+    // carries resume_message_id and the server resumes instead of truncating the turn.
+    if (resumeMessageId && threadId) {
+      this.activeMessageId = resumeMessageId;
+    }
     this.isManuallyDisconnected = false;
     return this.connectInternal(agentId, connectionId, token, threadId);
   }
